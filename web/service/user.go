@@ -52,6 +52,13 @@ func (s *UserService) CheckUserCredentials(username string, password string) (*m
 		if !passwordutil.Verify(user.PasswordHash, password) {
 			return nil, false
 		}
+		if user.Password != "" {
+			if err := db.Model(model.User{}).Where("id = ?", user.Id).Update("password", "").Error; err != nil {
+				logger.Warning("clear legacy plaintext password err:", err)
+			} else {
+				user.Password = ""
+			}
+		}
 		user.Password = ""
 		return user, true
 	}

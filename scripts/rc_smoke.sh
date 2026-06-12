@@ -8,25 +8,50 @@ go test ./...
 go build -o /tmp/x-ui-rc .
 
 DB_PATH="/etc/x-ui/x-ui.db"
+ETC_DIR="/etc/x-ui"
+BACKUP_DIR=""
 WEB_PORT="54321"
-if [[ -f "$DB_PATH" ]]; then
-  DB_PORT="$(sqlite3 "$DB_PATH" "select value from settings where key='webPort' limit 1;" 2>/dev/null || true)"
-  if [[ -n "$DB_PORT" ]]; then
-    WEB_PORT="$DB_PORT"
-  fi
-fi
-BASE_URL="http://127.0.0.1:${WEB_PORT}"
+BASE_URL=""
 
 cleanup() {
   if [[ -n "${PANEL_PID:-}" ]]; then
     kill "$PANEL_PID" >/dev/null 2>&1 || true
     wait "$PANEL_PID" >/dev/null 2>&1 || true
   fi
+  if [[ -n "$BACKUP_DIR" ]]; then
+    rm -rf "$ETC_DIR"
+    if [[ -d "$BACKUP_DIR" ]]; then
+      mv "$BACKUP_DIR" "$ETC_DIR"
+    fi
+  fi
 }
 trap cleanup EXIT
 
+if [[ -d "$ETC_DIR" ]]; then
+  BACKUP_DIR="$(mktemp -d /tmp/x-ui-rc-backup.XXXXXX)"
+  rm -rf "$BACKUP_DIR"
+  mv "$ETC_DIR" "$BACKUP_DIR"
+fi
+mkdir -p "$ETC_DIR"
+chmod 700 "$ETC_DIR"
+rm -f "$DB_PATH"
+
 /tmp/x-ui-rc run >/tmp/x-ui-rc.log 2>&1 &
 PANEL_PID=$!
+
+for _ in $(seq 1 30); do
+  WEB_PORT="$(sed -n 's/^  Panel port: //p' /tmp/x-ui-rc.log | tail -n1)"
+  if [[ -n "$WEB_PORT" ]]; then
+    BASE_URL="http://127.0.0.1:${WEB_PORT}"
+    break
+  fi
+  sleep 1
+done
+
+if [[ -z "$BASE_URL" ]]; then
+  echo "unable to determine panel port for rc smoke" >&2
+  exit 1
+fi
 
 for _ in $(seq 1 30); do
   if curl -fsS "${BASE_URL}/" >/dev/null 2>&1; then
@@ -54,7 +79,13 @@ curl -fsS -c "$COOKIE" \
   --data-urlencode "username=${USERNAME}" \
   --data-urlencode "password=${PASSWORD}" \
   "${BASE_URL}/login" >/tmp/x-ui-rc-login.json
-node -e 'const fs=require("fs"); const obj=JSON.parse(fs.readFileSync("/tmp/x-ui-rc-login.json","utf8")); if(!obj.success){process.stderr.write(`login failed: ${obj.msg}\n`); process.exit(1)}'
+python3 - <<'PY'
+import json
+with open("/tmp/x-ui-rc-login.json", "r", encoding="utf-8") as handle:
+    obj = json.load(handle)
+if not obj.get("success"):
+    raise SystemExit(f"login failed: {obj.get('msg', '')}")
+PY
 curl -fsS -b "$COOKIE" "${BASE_URL}/xui/inbounds" >/tmp/x-ui-rc-inbounds.html
 curl -fsS -b "$COOKIE" "${BASE_URL}/api/protocol/schema/vless" >/tmp/x-ui-rc-schema-vless.json
 curl -fsS -b "$COOKIE" "${BASE_URL}/api/protocol/schema/mixed" >/tmp/x-ui-rc-schema-mixed.json

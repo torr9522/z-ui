@@ -73,3 +73,42 @@ func TestUpdateUserStoresHashOnly(t *testing.T) {
 		t.Fatal("expected ValidatePassword to accept current password")
 	}
 }
+
+func TestCheckUserClearsLegacyPlaintextWhenHashAlreadyExists(t *testing.T) {
+	initTestDB(t)
+
+	hash, err := passwordutil.Hash("legacy-pass")
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+
+	db := database.GetDB()
+	legacy := &model.User{
+		Username:     "legacy-hash",
+		Password:     "legacy-pass",
+		PasswordHash: hash,
+	}
+	if err := db.Create(legacy).Error; err != nil {
+		t.Fatalf("create legacy user: %v", err)
+	}
+
+	service := &UserService{}
+	user, ok := service.CheckUserCredentials("legacy-hash", "legacy-pass")
+	if !ok {
+		t.Fatal("expected credentials to validate")
+	}
+	if user.Password != "" {
+		t.Fatalf("expected returned user password to be blank, got %q", user.Password)
+	}
+
+	reloaded := &model.User{}
+	if err := db.First(reloaded, legacy.Id).Error; err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if reloaded.Password != "" {
+		t.Fatalf("expected legacy plaintext to be cleared, got %q", reloaded.Password)
+	}
+	if !passwordutil.Verify(reloaded.PasswordHash, "legacy-pass") {
+		t.Fatal("expected existing password hash to remain valid")
+	}
+}
