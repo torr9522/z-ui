@@ -145,7 +145,7 @@ func (s *Server) getHtmlTemplate(funcMap template.FuncMap) (*template.Template, 
 	return t, nil
 }
 
-func (s *Server) initRouter() (*gin.Engine, error) {
+func (s *Server) initRouter(sessionOptions sessions.Options) (*gin.Engine, error) {
 	if config.IsDebug() {
 		gin.SetMode(gin.DebugMode)
 	} else {
@@ -168,6 +168,7 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	assetsBasePath := basePath + "assets/"
 
 	store := cookie.NewStore(secret)
+	store.Options(sessionOptions)
 	engine.Use(sessions.Sessions("session", store))
 	engine.Use(func(c *gin.Context) {
 		c.Set("base_path", basePath)
@@ -209,6 +210,16 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 	s.api = controller.NewProtocolController(g)
 
 	return engine, nil
+}
+
+func buildSessionOptions(basePath string, secure bool) sessions.Options {
+	return sessions.Options{
+		Path:     basePath,
+		MaxAge:   12 * 60 * 60,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	}
 }
 
 func (s *Server) initI18n(engine *gin.Engine) error {
@@ -312,11 +323,6 @@ func (s *Server) Start() (err error) {
 	s.cron = cron.New(cron.WithLocation(loc), cron.WithSeconds())
 	s.cron.Start()
 
-	engine, err := s.initRouter()
-	if err != nil {
-		return err
-	}
-
 	certFile, err := s.settingService.GetCertFile()
 	if err != nil {
 		return err
@@ -330,6 +336,14 @@ func (s *Server) Start() (err error) {
 		return err
 	}
 	port, err := s.settingService.GetPort()
+	if err != nil {
+		return err
+	}
+	basePath, err := s.settingService.GetBasePath()
+	if err != nil {
+		return err
+	}
+	engine, err := s.initRouter(buildSessionOptions(basePath, certFile != "" && keyFile != ""))
 	if err != nil {
 		return err
 	}
