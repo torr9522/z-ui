@@ -12,6 +12,8 @@
         confirmLoading: false,
         okText: '确定',
         confirm: null,
+        protocolSchemas: {},
+        protocolSchema: null,
         inbound: new Inbound(),
         dbInbound: new DBInbound(),
         ok() {
@@ -31,7 +33,21 @@
                 this.dbInbound = new DBInbound();
             }
             this.confirm = confirm;
+            this.loadProtocolSchema(this.inbound.protocol);
             this.visible = true;
+        },
+        async loadProtocolSchema(protocol) {
+            if (this.protocolSchemas[protocol]) {
+                this.protocolSchema = this.protocolSchemas[protocol];
+                return;
+            }
+            const msg = await HttpUtil.get(`/api/protocol/schema/${protocol}`);
+            if (!msg.success) {
+                this.protocolSchema = null;
+                return;
+            }
+            this.protocolSchemas[protocol] = msg.obj;
+            this.protocolSchema = msg.obj;
         },
         close() {
             inModal.visible = false;
@@ -71,6 +87,11 @@
                 if (oldValue === 'kcp') {
                     this.inModal.inbound.tls = false;
                 }
+            }
+        },
+        watch: {
+            'inModal.inbound.protocol'(protocol) {
+                this.inModal.loadProtocolSchema(protocol);
             }
         }
     });

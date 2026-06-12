@@ -13,6 +13,21 @@ func newVLESSModule() Module {
 	return &vlessModule{commonModule: commonModule{name: "vless", supportsClients: true}}
 }
 
+func (m *vlessModule) FormSchema() FormSchema {
+	return FormSchema{
+		Protocol:        m.name,
+		SupportsClients: true,
+		Fields: []FormField{
+			{Name: "clients.0.id", Label: "id", Type: "uuid", Required: true},
+			{Name: "clients.0.flow", Label: "flow", Type: "select", Default: "", Options: []FormOption{
+				{Label: "无", Value: ""},
+				{Label: "xtls-rprx-vision", Value: "xtls-rprx-vision"},
+			}},
+			{Name: "decryption", Label: "decryption", Type: "hidden", Default: "none"},
+		},
+	}
+}
+
 func (m *vlessModule) Validate(inbound *model.Inbound) error {
 	settings, err := decodeObject(inbound.Settings)
 	if err != nil {

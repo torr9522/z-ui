@@ -6,15 +6,23 @@ import (
 )
 
 type FormSchema struct {
-	Protocol        string
-	SupportsClients bool
-	Fields          []FormField
+	Protocol        string      `json:"protocol"`
+	SupportsClients bool        `json:"supportsClients"`
+	Fields          []FormField `json:"fields"`
 }
 
 type FormField struct {
-	Name     string
-	Type     string
-	Required bool
+	Name     string       `json:"name"`
+	Label    string       `json:"label"`
+	Type     string       `json:"type"`
+	Required bool         `json:"required"`
+	Default  interface{}  `json:"default,omitempty"`
+	Options  []FormOption `json:"options,omitempty"`
+}
+
+type FormOption struct {
+	Label string      `json:"label"`
+	Value interface{} `json:"value"`
 }
 
 type Module interface {

@@ -14,6 +14,21 @@ func newMixedModule() Module {
 	return &mixedModule{commonModule: commonModule{name: "mixed", supportsClients: false}}
 }
 
+func (m *mixedModule) FormSchema() FormSchema {
+	return FormSchema{
+		Protocol:        m.name,
+		SupportsClients: false,
+		Fields: []FormField{
+			{Name: "auth", Label: "认证", Type: "select", Default: "noauth", Options: []FormOption{
+				{Label: "noauth", Value: "noauth"},
+				{Label: "password", Value: "password"},
+			}},
+			{Name: "udp", Label: "UDP", Type: "switch", Default: true},
+			{Name: "ip", Label: "IP", Type: "text", Default: "127.0.0.1"},
+		},
+	}
+}
+
 func (m *mixedModule) Validate(inbound *model.Inbound) error {
 	if strings.TrimSpace(inbound.StreamSettings) != "" && strings.TrimSpace(inbound.StreamSettings) != "{}" {
 		if _, err := normalizeStreamSettings(m.name, inbound.StreamSettings); err != nil {

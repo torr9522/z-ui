@@ -13,6 +13,18 @@ func newVMessModule() Module {
 	return &vmessModule{commonModule: commonModule{name: "vmess", supportsClients: true}}
 }
 
+func (m *vmessModule) FormSchema() FormSchema {
+	return FormSchema{
+		Protocol:        m.name,
+		SupportsClients: true,
+		Fields: []FormField{
+			{Name: "clients.0.id", Label: "id", Type: "uuid", Required: true},
+			{Name: "clients.0.alterId", Label: "额外 ID", Type: "number", Default: 0},
+			{Name: "disableInsecureEncryption", Label: "禁用不安全加密", Type: "switch", Default: false},
+		},
+	}
+}
+
 func (m *vmessModule) Validate(inbound *model.Inbound) error {
 	settings, err := decodeObject(inbound.Settings)
 	if err != nil {

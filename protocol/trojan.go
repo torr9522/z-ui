@@ -13,6 +13,20 @@ func newTrojanModule() Module {
 	return &trojanModule{commonModule: commonModule{name: "trojan", supportsClients: true}}
 }
 
+func (m *trojanModule) FormSchema() FormSchema {
+	return FormSchema{
+		Protocol:        m.name,
+		SupportsClients: true,
+		Fields: []FormField{
+			{Name: "clients.0.password", Label: "密码", Type: "password", Required: true},
+			{Name: "clients.0.flow", Label: "flow", Type: "select", Default: "", Options: []FormOption{
+				{Label: "无", Value: ""},
+				{Label: "xtls-rprx-vision", Value: "xtls-rprx-vision"},
+			}},
+		},
+	}
+}
+
 func (m *trojanModule) Validate(inbound *model.Inbound) error {
 	settings, err := decodeObject(inbound.Settings)
 	if err != nil {
