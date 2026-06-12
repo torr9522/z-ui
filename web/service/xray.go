@@ -1,120 +1,106 @@
 package service
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
+	"fmt"
 	"go.uber.org/atomic"
 	"sync"
-	"x-ui/logger"
+	"time"
+	xruntime "x-ui/runtime"
 	"x-ui/xray"
 )
 
-var p *xray.Process
-var lock sync.Mutex
 var isNeedXrayRestart atomic.Bool
-var result string
+var runtimeManagerOnce sync.Once
+var runtimeManager *xruntime.Manager
+var runtimeReconciler *xruntime.Reconciler
 
 type XrayService struct {
 	inboundService InboundService
 	settingService SettingService
 }
 
+func (s *XrayService) getManager() *xruntime.Manager {
+	runtimeManagerOnce.Do(func() {
+		runtimeManager = xruntime.NewManager(&s.settingService)
+		runtimeReconciler = xruntime.NewReconciler(runtimeManager, s)
+	})
+	return runtimeManager
+}
+
+func (s *XrayService) getReconciler() *xruntime.Reconciler {
+	s.getManager()
+	return runtimeReconciler
+}
+
 func (s *XrayService) IsXrayRunning() bool {
-	return p != nil && p.IsRunning()
+	return s.getManager().IsRunning()
 }
 
 func (s *XrayService) GetXrayErr() error {
-	if p == nil {
-		return nil
-	}
-	return p.GetErr()
+	return s.getManager().GetErr()
 }
 
 func (s *XrayService) GetXrayResult() string {
-	if result != "" {
-		return result
-	}
-	if s.IsXrayRunning() {
-		return ""
-	}
-	if p == nil {
-		return ""
-	}
-	result = p.GetResult()
-	return result
+	return s.getManager().GetResult()
 }
 
 func (s *XrayService) GetXrayVersion() string {
-	if p == nil {
-		return "Unknown"
-	}
-	return p.GetVersion()
+	return s.getManager().GetVersion()
 }
 
-func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
+func (s *XrayService) BuildRuntimeSnapshot() (*xruntime.Snapshot, error) {
 	templateConfig, err := s.settingService.GetXrayConfigTemplate()
 	if err != nil {
 		return nil, err
 	}
-
-	xrayConfig := &xray.Config{}
-	err = json.Unmarshal([]byte(templateConfig), xrayConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	inbounds, err := s.inboundService.GetAllInbounds()
 	if err != nil {
 		return nil, err
 	}
-	for _, inbound := range inbounds {
-		if !inbound.Enable {
-			continue
-		}
-		inboundConfig := inbound.GenXrayInboundConfig()
-		xrayConfig.InboundConfigs = append(xrayConfig.InboundConfigs, *inboundConfig)
+	return s.getManager().Builder().Build(templateConfig, inbounds)
+}
+
+func (s *XrayService) GetXrayConfig() (*xray.Config, error) {
+	snapshot, err := s.BuildRuntimeSnapshot()
+	if err != nil {
+		return nil, err
 	}
-	return xrayConfig, nil
+	return snapshot.Raw, nil
 }
 
 func (s *XrayService) GetXrayTraffic() ([]*xray.Traffic, error) {
 	if !s.IsXrayRunning() {
 		return nil, errors.New("xray is not running")
 	}
-	return p.GetTraffic(true)
+	return s.getManager().GetTraffic(true)
 }
 
 func (s *XrayService) RestartXray(isForce bool) error {
-	lock.Lock()
-	defer lock.Unlock()
-	logger.Debug("restart xray, force:", isForce)
-
-	xrayConfig, err := s.GetXrayConfig()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	err := s.getReconciler().Reconcile(ctx, isForce)
 	if err != nil {
-		return err
+		return fmt.Errorf("sync xray runtime failed: %w", err)
 	}
-
-	if p != nil && p.IsRunning() {
-		if !isForce && p.GetConfig().Equals(xrayConfig) {
-			logger.Debug("not need to restart xray")
-			return nil
-		}
-		p.Stop()
-	}
-
-	p = xray.NewProcess(xrayConfig)
-	result = ""
-	return p.Start()
+	return nil
 }
 
 func (s *XrayService) StopXray() error {
-	lock.Lock()
-	defer lock.Unlock()
-	logger.Debug("stop xray")
-	if s.IsXrayRunning() {
-		return p.Stop()
-	}
-	return errors.New("xray is not running")
+	return s.getManager().Stop()
+}
+
+func (s *XrayService) RecoverRuntime() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return s.getReconciler().RecoverIfDirty(ctx)
+}
+
+func (s *XrayService) CheckRuntimeHealth() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return s.getReconciler().HealthCheck(ctx)
 }
 
 func (s *XrayService) SetToNeedRestart() {

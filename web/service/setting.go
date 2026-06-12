@@ -29,6 +29,8 @@ var defaultValueMap = map[string]string{
 	"secret":             random.Seq(32),
 	"webBasePath":        "/",
 	"timeLocation":       "Asia/Shanghai",
+	"runtimeDirty":       "false",
+	"runtimeLastError":   "",
 }
 
 type SettingService struct {
@@ -170,6 +172,26 @@ func (s *SettingService) setInt(key string, value int) error {
 
 func (s *SettingService) GetXrayConfigTemplate() (string, error) {
 	return s.getString("xrayTemplateConfig")
+}
+
+func (s *SettingService) SetRuntimeDirty(dirty bool) error {
+	return s.setString("runtimeDirty", strconv.FormatBool(dirty))
+}
+
+func (s *SettingService) GetRuntimeDirty() (bool, error) {
+	value, err := s.getString("runtimeDirty")
+	if err != nil {
+		return false, err
+	}
+	return strconv.ParseBool(value)
+}
+
+func (s *SettingService) SetRuntimeLastError(message string) error {
+	return s.setString("runtimeLastError", message)
+}
+
+func (s *SettingService) GetRuntimeLastError() (string, error) {
+	return s.getString("runtimeLastError")
 }
 
 func (s *SettingService) GetListen() (string, error) {

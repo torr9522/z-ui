@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -162,6 +163,9 @@ func (p *process) Start() (err error) {
 
 	cmd := exec.Command(GetBinaryPath(), "-c", configPath)
 	p.cmd = cmd
+	if assetDir, err := filepath.Abs("bin"); err == nil {
+		cmd.Env = append(os.Environ(), "XRAY_LOCATION_ASSET="+assetDir)
+	}
 
 	stdReader, err := cmd.StdoutPipe()
 	if err != nil {
