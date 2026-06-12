@@ -12,6 +12,8 @@ import (
 )
 
 type InboundController struct {
+	BaseController
+
 	inboundService service.InboundService
 	xrayService    service.XrayService
 }
@@ -27,9 +29,9 @@ func (a *InboundController) initRouter(g *gin.RouterGroup) {
 	g = g.Group("/inbound")
 
 	g.POST("/list", a.getInbounds)
-	g.POST("/add", a.addInbound)
-	g.POST("/del/:id", a.delInbound)
-	g.POST("/update/:id", a.updateInbound)
+	g.POST("/add", a.checkCSRF, a.addInbound)
+	g.POST("/del/:id", a.checkCSRF, a.delInbound)
+	g.POST("/update/:id", a.checkCSRF, a.updateInbound)
 }
 
 func (a *InboundController) startTask() {

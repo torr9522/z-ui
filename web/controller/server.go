@@ -34,7 +34,7 @@ func (a *ServerController) initRouter(g *gin.RouterGroup) {
 	g.Use(a.checkLogin)
 	g.POST("/status", a.status)
 	g.POST("/getXrayVersion", a.getXrayVersion)
-	g.POST("/installXray/:version", a.installXray)
+	g.POST("/installXray/:version", a.checkCSRF, a.installXray)
 }
 
 func (a *ServerController) refreshStatus() {

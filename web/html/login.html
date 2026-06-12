@@ -80,6 +80,9 @@
                 const msg = await HttpUtil.post('/login', this.user);
                 this.loading = false;
                 if (msg.success) {
+                    if (msg.obj && msg.obj.csrfToken) {
+                        window.XUI_CSRF_TOKEN = msg.obj.csrfToken;
+                    }
                     location.href = basePath + 'xui/';
                 }
             }

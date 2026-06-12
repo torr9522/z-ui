@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"x-ui/web/session"
@@ -20,4 +21,19 @@ func (a *BaseController) checkLogin(c *gin.Context) {
 	} else {
 		c.Next()
 	}
+}
+
+func (a *BaseController) checkCSRF(c *gin.Context) {
+	token := session.GetCSRFToken(c)
+	if token == "" {
+		jsonMsg(c, "请求校验", errors.New("csrf token is missing"))
+		c.Abort()
+		return
+	}
+	if c.GetHeader("X-CSRF-Token") != token {
+		jsonMsg(c, "请求校验", errors.New("csrf token is invalid"))
+		c.Abort()
+		return
+	}
+	c.Next()
 }

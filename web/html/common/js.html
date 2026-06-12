@@ -16,6 +16,7 @@
 <script src="{{ .base_path }}assets/js/model/models.js?{{ .cur_ver }}"></script>
 <script>
     const basePath = '{{ .base_path }}';
+    window.XUI_CSRF_TOKEN = '{{ .csrf_token }}';
     axios.defaults.baseURL = basePath;
 </script>
 {{end}}

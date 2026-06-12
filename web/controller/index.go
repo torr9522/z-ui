@@ -65,8 +65,17 @@ func (a *IndexController) login(c *gin.Context) {
 		Id:       user.Id,
 		Username: user.Username,
 	})
+	if err == nil {
+		_, err = session.EnsureCSRFToken(c)
+	}
 	logger.Info("user", user.Id, "login success")
-	jsonMsg(c, "登录", err)
+	if err != nil {
+		jsonMsg(c, "登录", err)
+		return
+	}
+	jsonObj(c, gin.H{
+		"csrfToken": session.GetCSRFToken(c),
+	}, nil)
 }
 
 func (a *IndexController) logout(c *gin.Context) {

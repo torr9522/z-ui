@@ -17,6 +17,8 @@ type updateUserForm struct {
 }
 
 type SettingController struct {
+	BaseController
+
 	settingService service.SettingService
 	userService    service.UserService
 	panelService   service.PanelService
@@ -32,9 +34,9 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g = g.Group("/setting")
 
 	g.POST("/all", a.getAllSetting)
-	g.POST("/update", a.updateSetting)
-	g.POST("/updateUser", a.updateUser)
-	g.POST("/restartPanel", a.restartPanel)
+	g.POST("/update", a.checkCSRF, a.updateSetting)
+	g.POST("/updateUser", a.checkCSRF, a.updateUser)
+	g.POST("/restartPanel", a.checkCSRF, a.restartPanel)
 }
 
 func (a *SettingController) getAllSetting(c *gin.Context) {
