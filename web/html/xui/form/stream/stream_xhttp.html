@@ -1,0 +1,17 @@
+{{define "form/streamXHTTP"}}
+<a-form layout="inline">
+    <a-form-item label="路径">
+        <a-input v-model.trim="inbound.stream.xhttp.path"></a-input>
+    </a-form-item>
+    <a-form-item label="host">
+        <a-input v-model.trim="inbound.stream.xhttp.host"></a-input>
+    </a-form-item>
+    <a-form-item label="mode">
+        <a-select v-model="inbound.stream.xhttp.mode" style="width: 150px">
+            <a-select-option value="stream-one">stream-one</a-select-option>
+            <a-select-option value="packet-up">packet-up</a-select-option>
+            <a-select-option value="stream-up">stream-up</a-select-option>
+        </a-select>
+    </a-form-item>
+</a-form>
+{{end}}

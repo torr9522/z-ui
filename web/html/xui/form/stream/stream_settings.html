@@ -7,6 +7,7 @@
             <a-select-option value="kcp">kcp</a-select-option>
             <a-select-option value="ws">ws</a-select-option>
             <a-select-option value="http">http</a-select-option>
+            <a-select-option value="xhttp">xhttp</a-select-option>
             <a-select-option value="quic">quic</a-select-option>
             <a-select-option value="grpc">grpc</a-select-option>
         </a-select>
@@ -31,6 +32,11 @@
 <!-- http -->
 <template v-if="inbound.stream.network === 'http'">
     {{template "form/streamHTTP"}}
+</template>
+
+<!-- xhttp -->
+<template v-if="inbound.stream.network === 'xhttp'">
+    {{template "form/streamXHTTP"}}
 </template>
 
 <!-- quic -->

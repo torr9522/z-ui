@@ -422,6 +422,35 @@ class HttpStreamSettings extends XrayCommonClass {
     }
 }
 
+class XHTTPStreamSettings extends XrayCommonClass {
+    constructor(path='/', host='', mode='stream-one') {
+        super();
+        this.path = path;
+        this.host = host;
+        this.mode = mode;
+    }
+
+    static fromJson(json={}) {
+        let host = json.host;
+        if (Array.isArray(host)) {
+            host = host.length > 0 ? host[0] : '';
+        }
+        return new XHTTPStreamSettings(
+            json.path,
+            host,
+            json.mode || 'stream-one',
+        );
+    }
+
+    toJson() {
+        return {
+            path: this.path,
+            host: this.host,
+            mode: this.mode,
+        }
+    }
+}
+
 class QuicStreamSettings extends XrayCommonClass {
     constructor(security=VmessMethods.NONE,
                 key='', type='none') {
@@ -588,6 +617,7 @@ class StreamSettings extends XrayCommonClass {
                 kcpSettings=new KcpStreamSettings(),
                 wsSettings=new WsStreamSettings(),
                 httpSettings=new HttpStreamSettings(),
+                xhttpSettings=new XHTTPStreamSettings(),
                 quicSettings=new QuicStreamSettings(),
                 grpcSettings=new GrpcStreamSettings(),
                 ) {
@@ -600,6 +630,7 @@ class StreamSettings extends XrayCommonClass {
         this.kcp = kcpSettings;
         this.ws = wsSettings;
         this.http = httpSettings;
+        this.xhttp = xhttpSettings;
         this.quic = quicSettings;
         this.grpc = grpcSettings;
     }
@@ -641,6 +672,12 @@ class StreamSettings extends XrayCommonClass {
     }
 
     static fromJson(json={}) {
+        if (json.network === 'http' || json.network === 'splithttp') {
+            json.network = 'xhttp';
+            if (!json.xhttpSettings) {
+                json.xhttpSettings = json.splithttpSettings || json.httpSettings;
+            }
+        }
         let tls;
         if (json.security === "xtls") {
             tls = TlsStreamSettings.fromJson(json.xtlsSettings);
@@ -656,6 +693,7 @@ class StreamSettings extends XrayCommonClass {
             KcpStreamSettings.fromJson(json.kcpSettings),
             WsStreamSettings.fromJson(json.wsSettings),
             HttpStreamSettings.fromJson(json.httpSettings),
+            XHTTPStreamSettings.fromJson(json.xhttpSettings),
             QuicStreamSettings.fromJson(json.quicSettings),
             GrpcStreamSettings.fromJson(json.grpcSettings),
         );
@@ -673,6 +711,7 @@ class StreamSettings extends XrayCommonClass {
             kcpSettings: network === 'kcp' ? this.kcp.toJson() : undefined,
             wsSettings: network === 'ws' ? this.ws.toJson() : undefined,
             httpSettings: network === 'http' ? this.http.toJson() : undefined,
+            xhttpSettings: network === 'xhttp' ? this.xhttp.toJson() : undefined,
             quicSettings: network === 'quic' ? this.quic.toJson() : undefined,
             grpcSettings: network === 'grpc' ? this.grpc.toJson() : undefined,
         };
@@ -793,6 +832,10 @@ class Inbound extends XrayCommonClass {
 
     get isH2() {
         return this.network === "http";
+    }
+
+    get isXHTTP() {
+        return this.network === "xhttp";
     }
 
     // VMess & VLess
@@ -964,7 +1007,7 @@ class Inbound extends XrayCommonClass {
             default:
                 return false;
         }
-        return ["tcp", "http", "grpc"].includes(this.network);
+        return ["tcp", "http", "xhttp", "grpc"].includes(this.network);
     }
 
     canEnableVision() {
@@ -1045,6 +1088,9 @@ class Inbound extends XrayCommonClass {
             network = 'h2';
             path = this.stream.http.path;
             host = this.stream.http.host.join(',');
+        } else if (network === 'xhttp') {
+            path = this.stream.xhttp.path;
+            host = this.stream.xhttp.host;
         } else if (network === 'quic') {
             type = this.stream.quic.type;
             host = this.stream.quic.security;
@@ -1118,6 +1164,12 @@ class Inbound extends XrayCommonClass {
                 const http = this.stream.http;
                 params.set("path", http.path);
                 params.set("host", http.host);
+                break;
+            case "xhttp":
+                const xhttp = this.stream.xhttp;
+                params.set("path", xhttp.path);
+                params.set("host", xhttp.host);
+                params.set("mode", xhttp.mode);
                 break;
             case "quic":
                 const quic = this.stream.quic;
