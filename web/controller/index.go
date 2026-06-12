@@ -61,7 +61,10 @@ func (a *IndexController) login(c *gin.Context) {
 		return
 	}
 
-	err = session.SetLoginUser(c, user)
+	err = session.SetLoginUser(c, &session.LoginUser{
+		Id:       user.Id,
+		Username: user.Username,
+	})
 	logger.Info("user", user.Id, "login success")
 	jsonMsg(c, "登录", err)
 }

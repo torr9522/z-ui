@@ -26,6 +26,14 @@ func (s *UserService) GetFirstUser() (*model.User, error) {
 }
 
 func (s *UserService) CheckUser(username string, password string) *model.User {
+	user, ok := s.CheckUserCredentials(username, password)
+	if !ok {
+		return nil
+	}
+	return user
+}
+
+func (s *UserService) CheckUserCredentials(username string, password string) (*model.User, bool) {
 	db := database.GetDB()
 
 	user := &model.User{}
@@ -34,31 +42,50 @@ func (s *UserService) CheckUser(username string, password string) *model.User {
 		First(user).
 		Error
 	if err == gorm.ErrRecordNotFound {
-		return nil
+		return nil, false
 	} else if err != nil {
 		logger.Warning("check user err:", err)
-		return nil
+		return nil, false
 	}
 
 	if user.PasswordHash != "" {
 		if !passwordutil.Verify(user.PasswordHash, password) {
-			return nil
+			return nil, false
 		}
-		user.Password = password
-		return user
+		user.Password = ""
+		return user, true
 	}
 	if user.Password != password {
-		return nil
+		return nil, false
 	}
 	hash, err := passwordutil.Hash(password)
 	if err != nil {
 		logger.Warning("hash user password err:", err)
-		return user
+		return user, true
 	}
-	if err := db.Model(model.User{}).Where("id = ?", user.Id).Update("password_hash", hash).Error; err != nil {
+	if err := db.Model(model.User{}).Where("id = ?", user.Id).Updates(map[string]interface{}{
+		"password_hash": hash,
+		"password":      "",
+	}).Error; err != nil {
 		logger.Warning("save user password hash err:", err)
 	}
-	return user
+	user.Password = ""
+	user.PasswordHash = hash
+	return user, true
+}
+
+func (s *UserService) ValidatePassword(userId int, password string) bool {
+	db := database.GetDB()
+	user := &model.User{}
+	err := db.Model(model.User{}).Where("id = ?", userId).First(user).Error
+	if err != nil {
+		if err != gorm.ErrRecordNotFound {
+			logger.Warning("get user for password validation err:", err)
+		}
+		return false
+	}
+	_, ok := s.CheckUserCredentials(user.Username, password)
+	return ok
 }
 
 func (s *UserService) UpdateUser(id int, username string, password string) error {
@@ -69,9 +96,11 @@ func (s *UserService) UpdateUser(id int, username string, password string) error
 	db := database.GetDB()
 	return db.Model(model.User{}).
 		Where("id = ?", id).
-		Update("username", username).
-		Update("password", password).
-		Update("password_hash", hash).
+		Updates(map[string]interface{}{
+			"username":      username,
+			"password":      "",
+			"password_hash": hash,
+		}).
 		Error
 }
 
@@ -90,7 +119,6 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 			return err
 		}
 		user.Username = username
-		user.Password = password
 		user.PasswordHash = hash
 		return db.Model(model.User{}).Create(user).Error
 	} else if err != nil {
@@ -101,7 +129,7 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 		return err
 	}
 	user.Username = username
-	user.Password = password
+	user.Password = ""
 	user.PasswordHash = hash
 	return db.Save(user).Error
 }
