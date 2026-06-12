@@ -44,49 +44,33 @@ If you need more language options ,please open a issue and let me know that
 for more detailed usages,plz see [WIKI](https://github.com/FranzKafkaYu/x-ui/wiki)
 
 # Installation
-Make sure your system `bash` and `curl` and `network` are ready,here we go
+Make sure `bash`, `curl`, `systemd`, and network access are available. The installer supports Debian, Ubuntu, CentOS, Rocky, and Alma on amd64/arm64.
+
+The installer generates a random username, random password, and a random panel port in the 10000-59999 range. The login credentials are printed only to the current terminal.
 
 ```
 bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh)
 ```  
-For English Users,please use the following command to install English supported version:  
+To install a specific version:
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install_en.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh) beta-v0.1.0
 ``` 
 
 ## Shortcut  
-After Installation，you can input `x-ui`to enter control menu，current menu details：
+After installation, use the `x-ui` command:
 ```
- 
-  x-ui control menu
-  0. exit
-————————————————
-  1. install   x-ui
-  2. update    x-ui
-  3. uninstall x-ui
-————————————————
-  4. reset username
-  5. reset panel
-  6. reset panel port
-  7. check panel info
-————————————————
-  8. start x-ui
-  9. stop  x-ui
-  10. restart x-ui
-  11. check x-ui status
-  12. check x-ui logs
-————————————————
-  13. enable  x-ui on sysyem startup
-  14. disabel x-ui on sysyem startup
-————————————————
-  15. enable bbr 
-  16. issuse certs
- 
-x-ui status: running
-enable on system startup: yes
-xray status: running
-
-please input a legal number[0-16]: 
+x-ui start
+x-ui stop
+x-ui restart
+x-ui status
+x-ui enable
+x-ui disable
+x-ui log
+x-ui reset-user
+x-ui reset-port
+x-ui info
+x-ui update
+x-ui uninstall
 ```
 
 # System requirements:  

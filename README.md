@@ -34,20 +34,32 @@
 :bulb:具体**使用、配置细节以及问题排查**请点击这里:point_right:[WIKI](https://github.com/FranzKafkaYu/x-ui/wiki):point_left:  
  Specific **Usages、Configurations and Debug** please refer to [WIKI](https://github.com/FranzKafkaYu/x-ui/wiki)    
 # 一键安装
-在安装前请确保你的系统支持`bash`环境,且系统网络正常  
+在安装前请确保你的系统支持 `bash`、`curl`、`systemd`，且系统网络正常。安装脚本支持 Debian、Ubuntu、CentOS、Rocky、Alma 的 amd64/arm64 环境。  
 
-&#x26A1;从原版升级也可使用该命令，数据不会丢失&#x26A1;
+安装会自动生成随机用户名、随机密码和 10000-59999 范围内的随机面板端口。安装完成后登录信息只会输出到当前终端。
 
 ```
 bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh)
 ```    
-For English Users,please use the following command to install English supported version:  
+如需安装指定版本，可以在上述命令后追加版本号：    
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install_en.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh) beta-v0.1.0
 ```
-如需安装指定的版本,可以在上述命令中指定版本号,如指定版本为`0.3.4.4`,安装命令如下：    
+
+安装完成后可使用 `x-ui` 管理命令：
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh) 0.3.4.4   
+x-ui start
+x-ui stop
+x-ui restart
+x-ui status
+x-ui enable
+x-ui disable
+x-ui log
+x-ui reset-user
+x-ui reset-port
+x-ui info
+x-ui update
+x-ui uninstall
 ```
 
 # 效果预览  
