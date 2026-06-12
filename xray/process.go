@@ -10,7 +10,6 @@ import (
 	"github.com/Workiva/go-datastructures/queue"
 	statsservice "github.com/xtls/xray-core/app/stats/command"
 	"google.golang.org/grpc"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -156,9 +155,12 @@ func (p *process) Start() (err error) {
 		return common.NewErrorf("生成 xray 配置文件失败: %v", err)
 	}
 	configPath := GetConfigPath()
-	err = os.WriteFile(configPath, data, fs.ModePerm)
+	err = os.WriteFile(configPath, data, 0600)
 	if err != nil {
 		return common.NewErrorf("写入配置文件失败: %v", err)
+	}
+	if err := os.Chmod(configPath, 0600); err != nil {
+		return common.NewErrorf("修正配置文件权限失败: %v", err)
 	}
 
 	cmd := exec.Command(GetBinaryPath(), "-c", configPath)

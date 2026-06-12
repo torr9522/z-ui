@@ -51,7 +51,7 @@ func initSetting() error {
 
 func InitDB(dbPath string) (*BootstrapCredentials, error) {
 	dir := path.Dir(dbPath)
-	err := os.MkdirAll(dir, 0755)
+	err := os.MkdirAll(dir, 0700)
 	if err != nil {
 		return nil, err
 	}
@@ -69,6 +69,9 @@ func InitDB(dbPath string) (*BootstrapCredentials, error) {
 	}
 	db, err = gorm.Open(sqlite.Open(dbPath), c)
 	if err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(dbPath, 0600); err != nil && !os.IsNotExist(err) {
 		return nil, err
 	}
 
