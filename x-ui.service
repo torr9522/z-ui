@@ -1,12 +1,16 @@
 [Unit]
 Description=x-ui Service
-After=network.target
-Wants=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/usr/local/x-ui/
-ExecStart=/usr/local/x-ui/x-ui
+WorkingDirectory=/usr/local/x-ui
+ExecStart=/usr/local/x-ui/x-ui run
+Restart=on-failure
+RestartSec=3
+LimitNOFILE=1048576
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

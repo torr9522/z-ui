@@ -1,190 +1,282 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-red='\033[0;31m'
-green='\033[0;32m'
-yellow='\033[0;33m'
-plain='\033[0m'
+APP_NAME="x-ui"
+INSTALL_DIR="/usr/local/x-ui"
+CONFIG_DIR="/etc/x-ui"
+DB_PATH="${CONFIG_DIR}/x-ui.db"
+SERVICE_PATH="/etc/systemd/system/x-ui.service"
+COMMAND_PATH="/usr/bin/x-ui"
+REPO="${XUI_REPO:-FranzKafkaYu/x-ui}"
+VERSION="${1:-${XUI_VERSION:-}}"
 
-cur_dir=$(pwd)
-
-# check root
-[[ $EUID -ne 0 ]] && echo -e "${red}错误：${plain} 必须使用root用户运行此脚本！\n" && exit 1
-
-# check os
-if [[ -f /etc/redhat-release ]]; then
-    release="centos"
-elif cat /etc/issue | grep -Eqi "debian"; then
-    release="debian"
-elif cat /etc/issue | grep -Eqi "ubuntu"; then
-    release="ubuntu"
-elif cat /etc/issue | grep -Eqi "centos|red hat|redhat"; then
-    release="centos"
-elif cat /proc/version | grep -Eqi "debian"; then
-    release="debian"
-elif cat /proc/version | grep -Eqi "ubuntu"; then
-    release="ubuntu"
-elif cat /proc/version | grep -Eqi "centos|red hat|redhat"; then
-    release="centos"
-else
-    echo -e "${red}未检测到系统版本，请联系脚本作者！${plain}\n" && exit 1
-fi
-
-arch=$(arch)
-
-if [[ $arch == "x86_64" || $arch == "x64" || $arch == "s390x" || $arch == "amd64" ]]; then
-    arch="amd64"
-elif [[ $arch == "aarch64" || $arch == "arm64" ]]; then
-    arch="arm64"
-else
-    arch="amd64"
-    echo -e "${red}检测架构失败，使用默认架构: ${arch}${plain}"
-fi
-
-echo "架构: ${arch}"
-
-if [ $(getconf WORD_BIT) != '32' ] && [ $(getconf LONG_BIT) != '64' ]; then
-    echo "本软件不支持 32 位系统(x86)，请使用 64 位系统(x86_64)，如果检测有误，请联系作者"
-    exit -1
-fi
-
-os_version=""
-
-# os version
-if [[ -f /etc/os-release ]]; then
-    os_version=$(awk -F'[= ."]' '/VERSION_ID/{print $3}' /etc/os-release)
-fi
-if [[ -z "$os_version" && -f /etc/lsb-release ]]; then
-    os_version=$(awk -F'[= ."]+' '/DISTRIB_RELEASE/{print $2}' /etc/lsb-release)
-fi
-
-if [[ x"${release}" == x"centos" ]]; then
-    if [[ ${os_version} -le 6 ]]; then
-        echo -e "${red}请使用 CentOS 7 或更高版本的系统！${plain}\n" && exit 1
-    fi
-elif [[ x"${release}" == x"ubuntu" ]]; then
-    if [[ ${os_version} -lt 16 ]]; then
-        echo -e "${red}请使用 Ubuntu 16 或更高版本的系统！${plain}\n" && exit 1
-    fi
-elif [[ x"${release}" == x"debian" ]]; then
-    if [[ ${os_version} -lt 8 ]]; then
-        echo -e "${red}请使用 Debian 8 或更高版本的系统！${plain}\n" && exit 1
-    fi
-fi
-
-install_base() {
-    if [[ x"${release}" == x"centos" ]]; then
-        yum install wget curl tar jq -y
-    else
-        apt install wget curl tar jq -y
-    fi
+log() {
+  printf '%s\n' "$*"
 }
 
-#This function will be called when user installed x-ui out of sercurity
-config_after_install() {
-    echo -e "${yellow}出于安全考虑，安装/更新完成后需要强制修改端口与账户密码${plain}"
-    read -p "确认是否继续,如选择n则跳过本次端口与账户密码设定[y/n]": config_confirm
-    if [[ x"${config_confirm}" == x"y" || x"${config_confirm}" == x"Y" ]]; then
-        read -p "请设置您的账户名:" config_account
-        echo -e "${yellow}您的账户名将设定为:${config_account}${plain}"
-        read -p "请设置您的账户密码:" config_password
-        echo -e "${yellow}您的账户密码将设定为:${config_password}${plain}"
-        read -p "请设置面板访问端口:" config_port
-        echo -e "${yellow}您的面板访问端口将设定为:${config_port}${plain}"
-        echo -e "${yellow}确认设定,设定中${plain}"
-        /usr/local/x-ui/x-ui setting -username ${config_account} -password ${config_password}
-        echo -e "${yellow}账户密码设定完成${plain}"
-        /usr/local/x-ui/x-ui setting -port ${config_port}
-        echo -e "${yellow}面板端口设定完成${plain}"
-    else
-        echo -e "${red}已取消设定...${plain}"
-        if [[ ! -f "/etc/x-ui/x-ui.db" ]]; then
-            local usernameTemp=$(head -c 6 /dev/urandom | base64)
-            local passwordTemp=$(head -c 6 /dev/urandom | base64)
-            local portTemp=$(echo $RANDOM)
-            /usr/local/x-ui/x-ui setting -username ${usernameTemp} -password ${passwordTemp}
-            /usr/local/x-ui/x-ui setting -port ${portTemp}
-            echo -e "检测到您属于全新安装,出于安全考虑已自动为您生成随机用户与端口:"
-            echo -e "###############################################"
-            echo -e "${green}面板登录用户名:${usernameTemp}${plain}"
-            echo -e "${green}面板登录用户密码:${passwordTemp}${plain}"
-            echo -e "${red}面板登录端口:${portTemp}${plain}"
-            echo -e "###############################################"
-            echo -e "${red}如您遗忘了面板登录相关信息,可在安装完成后输入x-ui,输入选项7查看面板登录信息${plain}"
-        else
-            echo -e "${red}当前属于版本升级,保留之前设置项,登录方式保持不变,可输入x-ui后键入数字7查看面板登录信息${plain}"
-        fi
-    fi
+fail() {
+  printf 'ERROR: %s\n' "$*" >&2
+  exit 1
 }
 
-install_x-ui() {
-    systemctl stop x-ui
-    cd /usr/local/
-
-    if [ $# == 0 ]; then
-        last_version=$(curl -Lsk "https://api.github.com/repos/FranzKafkaYu/x-ui/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-        if [[ ! -n "$last_version" ]]; then
-            echo -e "${red}检测 x-ui 版本失败，可能是超出 Github API 限制，请稍后再试，或手动指定 x-ui 版本安装${plain}"
-            exit 1
-        fi
-        echo -e "检测到 x-ui 最新版本：${last_version}，开始安装"
-        wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz https://github.com/FranzKafkaYu/x-ui/releases/download/${last_version}/x-ui-linux-${arch}.tar.gz
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}下载 x-ui 失败，请确保你的服务器能够下载 Github 的文件${plain}"
-            exit 1
-        fi
-    else
-        last_version=$1
-        url="https://github.com/FranzKafkaYu/x-ui/releases/download/${last_version}/x-ui-linux-${arch}.tar.gz"
-        echo -e "开始安装 x-ui v$1"
-        wget -N --no-check-certificate -O /usr/local/x-ui-linux-${arch}.tar.gz ${url}
-        if [[ $? -ne 0 ]]; then
-            echo -e "${red}下载 x-ui v$1 失败，请确保此版本存在${plain}"
-            exit 1
-        fi
-    fi
-
-    if [[ -e /usr/local/x-ui/ ]]; then
-        rm /usr/local/x-ui/ -rf
-    fi
-
-    tar zxvf x-ui-linux-${arch}.tar.gz
-    rm x-ui-linux-${arch}.tar.gz -f
-    cd x-ui
-    chmod +x x-ui bin/xray-linux-${arch}
-    cp -f x-ui.service /etc/systemd/system/
-    wget --no-check-certificate -O /usr/bin/x-ui https://raw.githubusercontent.com/FranzKafkaYu/x-ui/main/x-ui.sh
-    chmod +x /usr/local/x-ui/x-ui.sh
-    chmod +x /usr/bin/x-ui
-    config_after_install
-    #echo -e "如果是全新安装，默认网页端口为 ${green}54321${plain}，用户名和密码默认都是 ${green}admin${plain}"
-    #echo -e "请自行确保此端口没有被其他程序占用，${yellow}并且确保 54321 端口已放行${plain}"
-    #    echo -e "若想将 54321 修改为其它端口，输入 x-ui 命令进行修改，同样也要确保你修改的端口也是放行的"
-    #echo -e ""
-    #echo -e "如果是更新面板，则按你之前的方式访问面板"
-    #echo -e ""
-    systemctl daemon-reload
-    systemctl enable x-ui
-    systemctl start x-ui
-    echo -e "${green}x-ui v${last_version}${plain} 安装完成，面板已启动，"
-    echo -e ""
-    echo -e "x-ui 管理脚本使用方法: "
-    echo -e "----------------------------------------------"
-    echo -e "x-ui              - 显示管理菜单 (功能更多)"
-    echo -e "x-ui start        - 启动 x-ui 面板"
-    echo -e "x-ui stop         - 停止 x-ui 面板"
-    echo -e "x-ui restart      - 重启 x-ui 面板"
-    echo -e "x-ui status       - 查看 x-ui 状态"
-    echo -e "x-ui enable       - 设置 x-ui 开机自启"
-    echo -e "x-ui disable      - 取消 x-ui 开机自启"
-    echo -e "x-ui log          - 查看 x-ui 日志"
-    echo -e "x-ui v2-ui        - 迁移本机器的 v2-ui 账号数据至 x-ui"
-    echo -e "x-ui update       - 更新 x-ui 面板"
-    echo -e "x-ui install      - 安装 x-ui 面板"
-    echo -e "x-ui uninstall    - 卸载 x-ui 面板"
-    echo -e "x-ui geo          - 更新 geo  数据"
-    echo -e "----------------------------------------------"
+require_root() {
+  [[ "${EUID}" -eq 0 ]] || fail "install.sh must be run as root"
 }
 
-echo -e "${green}开始安装${plain}"
-install_base
-install_x-ui $1
+detect_os() {
+  [[ -r /etc/os-release ]] || fail "cannot detect operating system"
+  # shellcheck disable=SC1091
+  . /etc/os-release
+  case "${ID:-}" in
+    debian)
+      OS_FAMILY="debian"
+      ;;
+    ubuntu)
+      OS_FAMILY="ubuntu"
+      ;;
+    centos | rocky | almalinux | rhel)
+      OS_FAMILY="rhel"
+      ;;
+    *)
+      case " ${ID_LIKE:-} " in
+        *" debian "*)
+          OS_FAMILY="debian"
+          ;;
+        *" rhel "* | *" fedora "*)
+          OS_FAMILY="rhel"
+          ;;
+        *)
+          fail "unsupported operating system: ${ID:-unknown}"
+          ;;
+      esac
+      ;;
+  esac
+}
+
+install_dependencies() {
+  if [[ "${XUI_SKIP_DEP_INSTALL:-}" == "1" ]]; then
+    return
+  fi
+
+  case "${OS_FAMILY}" in
+    debian | ubuntu)
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -y
+      apt-get install -y curl wget tar unzip ca-certificates systemd sqlite3
+      ;;
+    rhel)
+      local pm="yum"
+      if command -v dnf >/dev/null 2>&1; then
+        pm="dnf"
+      fi
+      "${pm}" install -y curl wget tar unzip ca-certificates systemd sqlite
+      ;;
+    *)
+      fail "unsupported package manager for ${OS_FAMILY}"
+      ;;
+  esac
+}
+
+detect_arch() {
+  case "$(uname -m)" in
+    x86_64 | amd64)
+      ARCH="amd64"
+      ;;
+    aarch64 | arm64)
+      ARCH="arm64"
+      ;;
+    *)
+      fail "unsupported architecture: $(uname -m)"
+      ;;
+  esac
+}
+
+latest_version() {
+  local api="https://api.github.com/repos/${REPO}/releases/latest"
+  curl -fsSL "${api}" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
+}
+
+download_package() {
+  local tmp_dir="$1"
+  local package_path="${tmp_dir}/x-ui.tar.gz"
+  local url="${XUI_INSTALL_PACKAGE_URL:-}"
+
+  if [[ -z "${url}" ]]; then
+    if [[ -z "${VERSION}" ]]; then
+      VERSION="$(latest_version)"
+    fi
+    [[ -n "${VERSION}" ]] || fail "failed to resolve latest release version"
+    url="https://github.com/${REPO}/releases/download/${VERSION}/x-ui-linux-${ARCH}.tar.gz"
+  fi
+
+  log "Downloading ${APP_NAME} package: ${url}"
+  curl -fL --retry 3 --connect-timeout 15 -o "${package_path}" "${url}"
+  [[ -s "${package_path}" ]] || fail "downloaded package is empty"
+  tar -tzf "${package_path}" >/dev/null
+  printf '%s\n' "${package_path}"
+}
+
+random_hex() {
+  local bytes="$1"
+  od -An -N"${bytes}" -tx1 /dev/urandom | tr -d ' \n'
+}
+
+generate_username() {
+  printf 'xui_%s\n' "$(random_hex 4 | cut -c1-8)"
+}
+
+generate_password() {
+  random_hex 18
+}
+
+port_in_use() {
+  local port="$1"
+  if command -v ss >/dev/null 2>&1; then
+    ss -ltn "( sport = :${port} )" | grep -q ":${port}"
+    return
+  fi
+  timeout 1 bash -c ":</dev/tcp/127.0.0.1/${port}" >/dev/null 2>&1
+}
+
+generate_port() {
+  local n port
+  for _ in $(seq 1 100); do
+    n="$(od -An -N2 -tu2 /dev/urandom | tr -d ' ')"
+    port=$((10000 + n % 50000))
+    [[ "${port}" -ge 10000 && "${port}" -le 59999 ]] || continue
+    [[ "${port}" -ne 54321 ]] || continue
+    if ! port_in_use "${port}"; then
+      printf '%s\n' "${port}"
+      return
+    fi
+  done
+  fail "failed to allocate an unused web port"
+}
+
+backup_existing_db() {
+  mkdir -p "${CONFIG_DIR}"
+  chmod 700 "${CONFIG_DIR}"
+  if [[ -f "${DB_PATH}" ]]; then
+    local timestamp backup_path
+    timestamp="$(date -u +%Y%m%d%H%M%S)"
+    backup_path="${DB_PATH}.bak.${timestamp}"
+    mv "${DB_PATH}" "${backup_path}"
+    chmod 600 "${backup_path}"
+    log "Existing database backed up to ${backup_path}"
+  fi
+}
+
+install_files() {
+  local package_path="$1"
+  local tmp_dir="$2"
+  local extract_dir="${tmp_dir}/extract"
+  local source_dir
+
+  mkdir -p "${extract_dir}"
+  tar -xzf "${package_path}" -C "${extract_dir}"
+
+  if [[ -d "${extract_dir}/x-ui" ]]; then
+    source_dir="${extract_dir}/x-ui"
+  else
+    source_dir="${extract_dir}"
+  fi
+
+  [[ -x "${source_dir}/x-ui" || -f "${source_dir}/x-ui" ]] || fail "package missing x-ui binary"
+  [[ -f "${source_dir}/x-ui.sh" ]] || fail "package missing x-ui management script"
+  [[ -f "${source_dir}/x-ui.service" ]] || fail "package missing systemd service"
+
+  rm -rf "${INSTALL_DIR}"
+  mkdir -p "${INSTALL_DIR}"
+  cp -a "${source_dir}/." "${INSTALL_DIR}/"
+  chmod 755 "${INSTALL_DIR}/x-ui"
+  chmod 755 "${INSTALL_DIR}/x-ui.sh"
+  if [[ -f "${INSTALL_DIR}/bin/xray-linux-${ARCH}" ]]; then
+    chmod 755 "${INSTALL_DIR}/bin/xray-linux-${ARCH}"
+  fi
+
+  install -m 0755 "${INSTALL_DIR}/x-ui.sh" "${COMMAND_PATH}"
+  install -m 0644 "${INSTALL_DIR}/x-ui.service" "${SERVICE_PATH}"
+}
+
+initialize_panel() {
+  USERNAME="$(generate_username)"
+  PASSWORD="$(generate_password)"
+  PORT="$(generate_port)"
+
+  "${INSTALL_DIR}/x-ui" setting -username "${USERNAME}" -password "${PASSWORD}" >/dev/null
+  "${INSTALL_DIR}/x-ui" setting -port "${PORT}" >/dev/null
+
+  chmod 700 "${CONFIG_DIR}"
+  if [[ -f "${DB_PATH}" ]]; then
+    chmod 600 "${DB_PATH}"
+  fi
+}
+
+start_service() {
+  systemctl daemon-reload
+  systemctl enable x-ui
+  if ! systemctl restart x-ui; then
+    journalctl -u x-ui -n 50 --no-pager || true
+    fail "failed to start x-ui service"
+  fi
+}
+
+server_ip() {
+  local ip=""
+  ip="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
+  if [[ -z "${ip}" ]]; then
+    ip="$(curl -fsS --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+  fi
+  if [[ -z "${ip}" ]]; then
+    ip="$(hostname -I 2>/dev/null | awk '{print $1}')"
+  fi
+  printf '%s\n' "${ip:-127.0.0.1}"
+}
+
+print_success() {
+  local ip
+  ip="$(server_ip)"
+  cat <<EOF
+================================
+x-ui installed successfully
+
+Panel URL:
+http://${ip}:${PORT}
+
+Username:
+${USERNAME}
+
+Password:
+${PASSWORD}
+
+Command:
+x-ui
+
+Config:
+ /etc/x-ui/x-ui.db
+
+Service:
+ systemctl status x-ui
+================================
+EOF
+}
+
+main() {
+  require_root
+  detect_os
+  detect_arch
+  install_dependencies
+
+  local tmp_dir package_path
+  tmp_dir="$(mktemp -d)"
+  trap 'rm -rf "${tmp_dir}"' EXIT
+
+  package_path="$(download_package "${tmp_dir}")"
+  backup_existing_db
+  install_files "${package_path}" "${tmp_dir}"
+  initialize_panel
+  start_service
+  print_success
+}
+
+main "$@"
