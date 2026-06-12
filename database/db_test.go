@@ -2,6 +2,7 @@ package database
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"x-ui/database/model"
 )
@@ -52,5 +53,44 @@ func TestInitDBBootstrapsSecureFirstUser(t *testing.T) {
 	}
 	if secondBootstrap != nil {
 		t.Fatalf("expected no bootstrap credentials on existing db, got %#v", secondBootstrap)
+	}
+}
+
+func TestInitDBMigratesLegacyVLESSDecryption(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "x-ui.db")
+
+	_, err := InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("init db: %v", err)
+	}
+
+	inbound := &model.Inbound{
+		UserId:   1,
+		Enable:   true,
+		Port:     24002,
+		Protocol: model.VLESS,
+		Tag:      "inbound-24002",
+		Settings: `{"clients":[{"id":"11111111-1111-1111-1111-111111111111"}]}`,
+		Sniffing: `{}`,
+	}
+	if err := GetDB().Create(inbound).Error; err != nil {
+		t.Fatalf("create inbound: %v", err)
+	}
+	if err := GetDB().Where("1 = 1").Delete(&model.SchemaMigration{}).Error; err != nil {
+		t.Fatalf("clear migrations: %v", err)
+	}
+
+	_, err = InitDB(dbPath)
+	if err != nil {
+		t.Fatalf("re-init db: %v", err)
+	}
+
+	reloaded := &model.Inbound{}
+	if err := GetDB().First(reloaded, inbound.Id).Error; err != nil {
+		t.Fatalf("reload inbound: %v", err)
+	}
+	if !strings.Contains(reloaded.Settings, `"decryption":"none"`) {
+		t.Fatalf("expected migrated decryption:none, got %s", reloaded.Settings)
 	}
 }

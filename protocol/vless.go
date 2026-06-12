@@ -30,11 +30,16 @@ func (m *vlessModule) FormSchema() FormSchema {
 }
 
 func (m *vlessModule) Validate(inbound *model.Inbound) error {
-	settings, err := decodeObject(inbound.Settings)
+	settings, err := normalizeVLESSSettings(inbound.Settings)
 	if err != nil {
 		return err
 	}
-	if err := validateClients(settings, "clients"); err != nil {
+	inbound.Settings = settings
+	decoded, err := decodeObject(settings)
+	if err != nil {
+		return err
+	}
+	if err := validateClients(decoded, "clients"); err != nil {
 		return err
 	}
 	_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
@@ -45,13 +50,27 @@ func (m *vlessModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig,
 	if err := m.Validate(inbound); err != nil {
 		return nil, err
 	}
-	settings, err := normalizeVisionFlows(inbound.Settings)
+	settings, err := normalizeVLESSSettings(inbound.Settings)
 	if err != nil {
 		return nil, err
 	}
+	settings, err = normalizeVisionFlows(settings)
+	if err != nil {
+		return nil, err
+	}
+	inbound.Settings = settings
 	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
 	if err != nil {
 		return nil, err
 	}
 	return buildInboundConfig(inbound, settings, streamSettings), nil
+}
+
+func (m *vlessModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
+	settings, err := normalizeVLESSSettings(inbound.Settings)
+	if err != nil {
+		return nil, err
+	}
+	inbound.Settings = settings
+	return inbound, nil
 }

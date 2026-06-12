@@ -24,6 +24,7 @@ func runMigrations(dbPath string) error {
 	migrations := []migration{
 		{version: "202606120001_password_hash", run: migratePasswordHash},
 		{version: "202606120002_inbound_clients", run: migrateInboundClients},
+		{version: "202606120003_vless_decryption_none", run: migrateVLESSDecryption},
 	}
 
 	needed, err := needsMigration(migrations)
@@ -167,6 +168,33 @@ func migrateInboundClients(tx *gorm.DB) error {
 	}
 	for _, inbound := range inbounds {
 		if err := migrateInboundSettingsClients(tx, &inbound); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateVLESSDecryption(tx *gorm.DB) error {
+	var inbounds []model.Inbound
+	if err := tx.Where("protocol = ?", model.VLESS).Find(&inbounds).Error; err != nil {
+		return err
+	}
+	for _, inbound := range inbounds {
+		settings := map[string]interface{}{}
+		if strings.TrimSpace(inbound.Settings) != "" {
+			if err := json.Unmarshal([]byte(inbound.Settings), &settings); err != nil {
+				return err
+			}
+		}
+		if value, ok := settings["decryption"].(string); ok && strings.TrimSpace(value) != "" {
+			continue
+		}
+		settings["decryption"] = "none"
+		data, err := json.Marshal(settings)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&model.Inbound{}).Where("id = ?", inbound.Id).Update("settings", string(data)).Error; err != nil {
 			return err
 		}
 	}

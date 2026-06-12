@@ -167,6 +167,19 @@ func normalizeVisionFlows(raw string) (string, error) {
 	return encodeObject(settings)
 }
 
+func normalizeVLESSSettings(raw string) (string, error) {
+	settings, err := decodeObject(raw)
+	if err != nil {
+		return "", err
+	}
+	decryption, exists := settings["decryption"]
+	if !exists || strings.TrimSpace(stringValue(decryption)) == "" || strings.EqualFold(stringValue(decryption), "null") {
+		settings["decryption"] = "none"
+	}
+	normalizeClientsFlow(settings, "clients")
+	return encodeObject(settings)
+}
+
 func normalizeTrojanFlows(raw string) (string, error) {
 	settings, err := decodeObject(raw)
 	if err != nil {
