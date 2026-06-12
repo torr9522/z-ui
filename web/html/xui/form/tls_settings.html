@@ -8,6 +8,9 @@
     <a-form-item v-if="inbound.canEnableXTls()" label="xtls">
         <a-switch v-model="inbound.xtls"></a-switch>
     </a-form-item>
+    <a-form-item v-if="inbound.canEnableReality()" label="reality">
+        <a-switch v-model="inbound.stream.isReality"></a-switch>
+    </a-form-item>
 </a-form>
 
 <!-- tls settings -->
@@ -41,5 +44,29 @@
                      v-model="inbound.stream.tls.certs[0].key"></a-input>
         </a-form-item>
     </template>
+</a-form>
+
+<!-- reality settings -->
+<a-form v-if="inbound.stream.isReality"
+        layout="inline">
+    <a-form-item label="privateKey">
+        <a-input v-model.trim="inbound.stream.reality.privateKey"></a-input>
+    </a-form-item>
+    <a-form-item label="publicKey">
+        <a-input v-model.trim="inbound.stream.reality.publicKey"></a-input>
+    </a-form-item>
+    <a-form-item label="shortIds">
+        <a-row v-for="(shortId, index) in inbound.stream.reality.shortIds">
+            <a-input v-model.trim="inbound.stream.reality.shortIds[index]"></a-input>
+        </a-row>
+    </a-form-item>
+    <a-form-item label="serverNames">
+        <a-row v-for="(serverName, index) in inbound.stream.reality.serverNames">
+            <a-input v-model.trim="inbound.stream.reality.serverNames[index]"></a-input>
+        </a-row>
+    </a-form-item>
+    <a-form-item label="spiderX">
+        <a-input v-model.trim="inbound.stream.reality.spiderX"></a-input>
+    </a-form-item>
 </a-form>
 {{end}}

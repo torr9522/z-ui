@@ -543,10 +543,47 @@ TlsStreamSettings.Cert = class extends XrayCommonClass {
     }
 };
 
+class RealityStreamSettings extends XrayCommonClass {
+    constructor(privateKey='',
+                publicKey='',
+                shortIds=[''],
+                serverNames=[''],
+                spiderX='/') {
+        super();
+        this.privateKey = privateKey;
+        this.publicKey = publicKey;
+        this.shortIds = shortIds && shortIds.length > 0 ? shortIds : [''];
+        this.serverNames = serverNames && serverNames.length > 0 ? serverNames : [''];
+        this.spiderX = spiderX;
+    }
+
+    static fromJson(json={}) {
+        return new RealityStreamSettings(
+            json.privateKey,
+            json.publicKey,
+            json.shortIds,
+            json.serverNames,
+            json.spiderX,
+        );
+    }
+
+    toJson() {
+        return {
+            show: false,
+            privateKey: this.privateKey,
+            publicKey: this.publicKey,
+            shortIds: this.shortIds.filter(shortId => !ObjectUtil.isEmpty(shortId)),
+            serverNames: this.serverNames.filter(serverName => !ObjectUtil.isEmpty(serverName)),
+            spiderX: this.spiderX,
+        };
+    }
+}
+
 class StreamSettings extends XrayCommonClass {
     constructor(network='tcp',
                 security='none',
                 tlsSettings=new TlsStreamSettings(),
+                realitySettings=new RealityStreamSettings(),
                 tcpSettings=new TcpStreamSettings(),
                 kcpSettings=new KcpStreamSettings(),
                 wsSettings=new WsStreamSettings(),
@@ -558,6 +595,7 @@ class StreamSettings extends XrayCommonClass {
         this.network = network;
         this.security = security;
         this.tls = tlsSettings;
+        this.reality = realitySettings;
         this.tcp = tcpSettings;
         this.kcp = kcpSettings;
         this.ws = wsSettings;
@@ -582,6 +620,18 @@ class StreamSettings extends XrayCommonClass {
         return this.security === "xtls";
     }
 
+    get isReality() {
+        return this.security === "reality";
+    }
+
+    set isReality(isReality) {
+        if (isReality) {
+            this.security = 'reality';
+        } else {
+            this.security = 'none';
+        }
+    }
+
     set isXTls(isXTls) {
         if (isXTls) {
             this.security = 'xtls';
@@ -601,6 +651,7 @@ class StreamSettings extends XrayCommonClass {
             json.network,
             json.security,
             tls,
+            RealityStreamSettings.fromJson(json.realitySettings),
             TcpStreamSettings.fromJson(json.tcpSettings),
             KcpStreamSettings.fromJson(json.kcpSettings),
             WsStreamSettings.fromJson(json.wsSettings),
@@ -617,6 +668,7 @@ class StreamSettings extends XrayCommonClass {
             security: this.security,
             tlsSettings: this.isTls ? this.tls.toJson() : undefined,
             xtlsSettings: this.isXTls ? this.tls.toJson() : undefined,
+            realitySettings: this.isReality ? this.reality.toJson() : undefined,
             tcpSettings: network === 'tcp' ? this.tcp.toJson() : undefined,
             kcpSettings: network === 'kcp' ? this.kcp.toJson() : undefined,
             wsSettings: network === 'ws' ? this.ws.toJson() : undefined,
@@ -814,6 +866,8 @@ class Inbound extends XrayCommonClass {
     get serverName() {
         if (this.stream.isTls || this.stream.isXTls) {
             return this.stream.tls.server;
+        } else if (this.stream.isReality) {
+            return this.stream.reality.serverNames[0];
         }
         return "";
     }
@@ -900,6 +954,17 @@ class Inbound extends XrayCommonClass {
                 return false;
         }
         return this.network === "tcp";
+    }
+
+    canEnableReality() {
+        switch (this.protocol) {
+            case Protocols.VLESS:
+            case Protocols.TROJAN:
+                break;
+            default:
+                return false;
+        }
+        return ["tcp", "http", "grpc"].includes(this.network);
     }
 
     canEnableStream() {
