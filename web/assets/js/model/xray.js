@@ -75,6 +75,18 @@ function setPathValue(obj, path, value) {
     current[segments[segments.length - 1]] = value;
 }
 
+function firstNonEmpty(value) {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            if (!ObjectUtil.isEmpty(item)) {
+                return item;
+            }
+        }
+        return '';
+    }
+    return value || '';
+}
+
 function defaultProtocolSettings(protocol) {
     switch (protocol) {
         case Protocols.VMESS:
@@ -922,6 +934,8 @@ class Inbound extends XrayCommonClass {
             return this.stream.ws.getHeader("Host");
         } else if (this.isH2) {
             return this.stream.http.host[0];
+        } else if (this.isXHTTP) {
+            return this.stream.xhttp.host;
         }
         return null;
     }
@@ -933,8 +947,34 @@ class Inbound extends XrayCommonClass {
             return this.stream.ws.path;
         } else if (this.isH2) {
             return this.stream.http.path[0];
+        } else if (this.isXHTTP) {
+            return this.stream.xhttp.path;
         }
         return null;
+    }
+
+    get securityLabel() {
+        return this.stream.security;
+    }
+
+    get realityPublicKey() {
+        return this.stream.reality.publicKey;
+    }
+
+    get realityShortId() {
+        return firstNonEmpty(this.stream.reality.shortIds);
+    }
+
+    get realityServerName() {
+        return firstNonEmpty(this.stream.reality.serverNames);
+    }
+
+    get realitySpiderX() {
+        return this.stream.reality.spiderX;
+    }
+
+    get xhttpMode() {
+        return this.stream.xhttp.mode;
     }
 
     get quicSecurity() {
@@ -1054,6 +1094,83 @@ class Inbound extends XrayCommonClass {
         this.sniffing = new Sniffing();
     }
 
+    applyTransportParams(params) {
+        const type = this.stream.network;
+        switch (type) {
+            case "tcp":
+                const tcp = this.stream.tcp;
+                if (tcp.type === 'http') {
+                    const request = tcp.request;
+                    params.set("path", request.path.join(','));
+                    const host = request.getHeader("Host");
+                    if (!ObjectUtil.isEmpty(host)) {
+                        params.set("host", host);
+                    }
+                    params.set("headerType", "http");
+                }
+                break;
+            case "kcp":
+                const kcp = this.stream.kcp;
+                params.set("headerType", kcp.type);
+                params.set("seed", kcp.seed);
+                break;
+            case "ws":
+                const ws = this.stream.ws;
+                params.set("path", ws.path);
+                const wsHost = ws.getHeader("Host");
+                if (!ObjectUtil.isEmpty(wsHost)) {
+                    params.set("host", wsHost);
+                }
+                break;
+            case "http":
+                const http = this.stream.http;
+                params.set("path", http.path);
+                params.set("host", firstNonEmpty(http.host));
+                break;
+            case "xhttp":
+                const xhttp = this.stream.xhttp;
+                params.set("path", xhttp.path);
+                params.set("host", xhttp.host);
+                params.set("mode", xhttp.mode);
+                break;
+            case "quic":
+                const quic = this.stream.quic;
+                params.set("quicSecurity", quic.security);
+                params.set("key", quic.key);
+                params.set("headerType", quic.type);
+                break;
+            case "grpc":
+                const grpc = this.stream.grpc;
+                params.set("serviceName", grpc.serviceName);
+                break;
+        }
+    }
+
+    applySecurityParams(params, address='') {
+        let nextAddress = address;
+        if (this.stream.security === 'tls') {
+            if (!ObjectUtil.isEmpty(this.stream.tls.server)) {
+                nextAddress = this.stream.tls.server;
+                params.set("sni", nextAddress);
+            }
+        } else if (this.stream.security === 'reality') {
+            const sni = this.realityServerName;
+            if (!ObjectUtil.isEmpty(sni)) {
+                params.set("sni", sni);
+            }
+            if (!ObjectUtil.isEmpty(this.realityPublicKey)) {
+                params.set("pbk", this.realityPublicKey);
+            }
+            if (!ObjectUtil.isEmpty(this.realityShortId)) {
+                params.set("sid", this.realityShortId);
+            }
+            if (!ObjectUtil.isEmpty(this.realitySpiderX)) {
+                params.set("spx", this.realitySpiderX);
+            }
+        }
+        return nextAddress;
+    }
+
     genVmessLink(address='', remark='') {
         if (this.protocol !== Protocols.VMESS) {
             return '';
@@ -1125,7 +1242,6 @@ class Inbound extends XrayCommonClass {
         const settings = this.settings;
         const uuid = settings.get('clients.0.id', '');
         const port = this.port;
-        const type = this.stream.network;
         const params = new Map();
         params.set("type", this.stream.network);
         if (this.xtls) {
@@ -1133,64 +1249,10 @@ class Inbound extends XrayCommonClass {
         } else {
             params.set("security", this.stream.security);
         }
-        switch (type) {
-            case "tcp":
-                const tcp = this.stream.tcp;
-                if (tcp.type === 'http') {
-                    const request = tcp.request;
-                    params.set("path", request.path.join(','));
-                    const index = request.headers.findIndex(header => header.name.toLowerCase() === 'host');
-                    if (index >= 0) {
-                        const host = request.headers[index].value;
-                        params.set("host", host);
-                    }
-                }
-                break;
-            case "kcp":
-                const kcp = this.stream.kcp;
-                params.set("headerType", kcp.type);
-                params.set("seed", kcp.seed);
-                break;
-            case "ws":
-                const ws = this.stream.ws;
-                params.set("path", ws.path);
-                const index = ws.headers.findIndex(header => header.name.toLowerCase() === 'host');
-                if (index >= 0) {
-                    const host = ws.headers[index].value;
-                    params.set("host", host);
-                }
-                break;
-            case "http":
-                const http = this.stream.http;
-                params.set("path", http.path);
-                params.set("host", http.host);
-                break;
-            case "xhttp":
-                const xhttp = this.stream.xhttp;
-                params.set("path", xhttp.path);
-                params.set("host", xhttp.host);
-                params.set("mode", xhttp.mode);
-                break;
-            case "quic":
-                const quic = this.stream.quic;
-                params.set("quicSecurity", quic.security);
-                params.set("key", quic.key);
-                params.set("headerType", quic.type);
-                break;
-            case "grpc":
-                const grpc = this.stream.grpc;
-                params.set("serviceName", grpc.serviceName);
-                break;
-        }
+        this.applyTransportParams(params);
+        address = this.applySecurityParams(params, address);
 
-        if (this.stream.security === 'tls') {
-            if (!ObjectUtil.isEmpty(this.stream.tls.server)) {
-                address = this.stream.tls.server;
-                params.set("sni", address);
-            }
-        }
-
-        if (this.xtls) {
+        if (this.protocol === Protocols.VLESS && this.canEnableVision() && !ObjectUtil.isEmpty(this.settings.get('clients.0.flow', ''))) {
             params.set("flow", this.settings.get('clients.0.flow', ''));
         }
 
@@ -1215,7 +1277,19 @@ class Inbound extends XrayCommonClass {
 
     genTrojanLink(address='', remark='') {
         let settings = this.settings;
-        return `trojan://${settings.get('clients.0.password', '')}@${address}:${this.port}#${encodeURIComponent(remark)}`;
+        const url = new URL(`trojan://${settings.get('clients.0.password', '')}@${address}:${this.port}`);
+        url.searchParams.set("type", this.stream.network);
+        if (this.stream.security === 'xtls') {
+            url.searchParams.set("security", "tls");
+        } else {
+            url.searchParams.set("security", this.stream.security);
+        }
+        this.applyTransportParams(url.searchParams);
+        address = this.applySecurityParams(url.searchParams, address);
+        url.username = settings.get('clients.0.password', '');
+        url.hostname = address;
+        url.hash = encodeURIComponent(remark);
+        return url.toString();
     }
 
     genLink(address='', remark='') {

@@ -1,7 +1,7 @@
 {{define "inboundInfoStream"}}
 <p>传输: <a-tag color="green">[[ inbound.network ]]</a-tag></p>
 
-<template v-if="inbound.isTcp || inbound.isWs || inbound.isH2">
+<template v-if="inbound.isTcp || inbound.isWs || inbound.isH2 || inbound.isXHTTP">
     <p v-if="inbound.host">host: <a-tag color="green">[[ inbound.host ]]</a-tag></p>
     <p v-else>host: <a-tag color="orange">无</a-tag></p>
 
@@ -24,9 +24,16 @@
     <p>grpc serviceName: <a-tag color="green">[[ inbound.serviceName ]]</a-tag></p>
 </template>
 
+<template v-if="inbound.isXHTTP">
+    <p>xhttp mode: <a-tag color="green">[[ inbound.xhttpMode ]]</a-tag></p>
+</template>
+
 <template v-if="inbound.tls || inbound.xtls">
     <p v-if="inbound.tls">tls: <a-tag color="green">开启</a-tag></p>
     <p v-if="inbound.xtls">xtls: <a-tag color="green">开启</a-tag></p>
+</template>
+<template v-else-if="inbound.stream.isReality">
+    <p>reality: <a-tag color="green">开启</a-tag></p>
 </template>
 <template v-else>
     <p>tls: <a-tag color="red">关闭</a-tag></p>
@@ -37,6 +44,12 @@
 <p v-if="inbound.xtls">
     xtls域名: <a-tag :color="inbound.serverName ? 'green' : 'orange'">[[ inbound.serverName ? inbound.serverName : "无" ]]</a-tag>
 </p>
+<template v-if="inbound.stream.isReality">
+    <p>reality serverName: <a-tag :color="inbound.realityServerName ? 'green' : 'orange'">[[ inbound.realityServerName ? inbound.realityServerName : "无" ]]</a-tag></p>
+    <p>reality publicKey: <a-tag :color="inbound.realityPublicKey ? 'green' : 'orange'">[[ inbound.realityPublicKey ? inbound.realityPublicKey : "无" ]]</a-tag></p>
+    <p>reality shortId: <a-tag :color="inbound.realityShortId ? 'green' : 'orange'">[[ inbound.realityShortId ? inbound.realityShortId : "无" ]]</a-tag></p>
+    <p>reality spiderX: <a-tag :color="inbound.realitySpiderX ? 'green' : 'orange'">[[ inbound.realitySpiderX ? inbound.realitySpiderX : "无" ]]</a-tag></p>
+</template>
 {{end}}
 
 

@@ -60,6 +60,9 @@
                                         <a-menu-item v-if="dbInbound.hasLink()" key="qrcode">
                                             <a-icon type="qrcode"></a-icon>二维码
                                         </a-menu-item>
+                                        <a-menu-item v-if="dbInbound.hasLink()" key="link">
+                                            <a-icon type="link"></a-icon>链接
+                                        </a-menu-item>
                                         <a-menu-item key="edit">
                                             <a-icon type="edit"></a-icon>编辑
                                         </a-menu-item>
@@ -221,6 +224,9 @@
                     case "qrcode":
                         this.showQrcode(dbInbound);
                         break;
+                    case "link":
+                        this.showLink(dbInbound);
+                        break;
                     case "edit":
                         this.openEditInbound(dbInbound);
                         break;
@@ -319,6 +325,10 @@
             showQrcode(dbInbound) {
                 const link = dbInbound.genLink();
                 qrModal.show('二维码', link);
+            },
+            showLink(dbInbound) {
+                const link = dbInbound.genLink();
+                txtModal.show('分享链接', link, `${dbInbound.remark || dbInbound.protocol}-${dbInbound.port}.txt`);
             },
             showInfo(dbInbound) {
                 infoModal.show(dbInbound);
