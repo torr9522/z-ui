@@ -13,18 +13,28 @@ import (
 
 var db *gorm.DB
 
+type legacyUser struct {
+	Id       int `gorm:"primaryKey;autoIncrement"`
+	Username string
+	Password string
+}
+
+func (legacyUser) TableName() string {
+	return "users"
+}
+
 func initUser() error {
-	err := db.AutoMigrate(&model.User{})
+	err := db.AutoMigrate(&legacyUser{})
 	if err != nil {
 		return err
 	}
 	var count int64
-	err = db.Model(&model.User{}).Count(&count).Error
+	err = db.Model(&legacyUser{}).Count(&count).Error
 	if err != nil {
 		return err
 	}
 	if count == 0 {
-		user := &model.User{
+		user := &legacyUser{
 			Username: "admin",
 			Password: "admin",
 		}
@@ -73,6 +83,10 @@ func InitDB(dbPath string) error {
 		return err
 	}
 	err = initSetting()
+	if err != nil {
+		return err
+	}
+	err = runMigrations(dbPath)
 	if err != nil {
 		return err
 	}

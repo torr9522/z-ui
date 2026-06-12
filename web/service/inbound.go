@@ -1,8 +1,10 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 	"x-ui/database"
 	"x-ui/database/model"
@@ -20,6 +22,9 @@ func (s *InboundService) GetInbounds(userId int) ([]*model.Inbound, error) {
 	if err != nil && err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
+	if err := s.attachClients(inbounds); err != nil {
+		return nil, err
+	}
 	return inbounds, nil
 }
 
@@ -28,6 +33,9 @@ func (s *InboundService) GetAllInbounds() ([]*model.Inbound, error) {
 	var inbounds []*model.Inbound
 	err := db.Model(model.Inbound{}).Find(&inbounds).Error
 	if err != nil && err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+	if err := s.attachClients(inbounds); err != nil {
 		return nil, err
 	}
 	return inbounds, nil
@@ -56,7 +64,9 @@ func (s *InboundService) AddInbound(inbound *model.Inbound) error {
 		return common.NewError("端口已存在:", inbound.Port)
 	}
 	db := database.GetDB()
-	return db.Save(inbound).Error
+	return db.Transaction(func(tx *gorm.DB) error {
+		return s.saveInboundWithClients(tx, inbound)
+	})
 }
 
 func (s *InboundService) AddInbounds(inbounds []*model.Inbound) error {
@@ -82,8 +92,7 @@ func (s *InboundService) AddInbounds(inbounds []*model.Inbound) error {
 	}()
 
 	for _, inbound := range inbounds {
-		err = tx.Save(inbound).Error
-		if err != nil {
+		if err = s.saveInboundWithClients(tx, inbound); err != nil {
 			return err
 		}
 	}
@@ -93,7 +102,12 @@ func (s *InboundService) AddInbounds(inbounds []*model.Inbound) error {
 
 func (s *InboundService) DelInbound(id int) error {
 	db := database.GetDB()
-	return db.Delete(model.Inbound{}, id).Error
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("inbound_id = ?", id).Delete(&model.InboundClient{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(model.Inbound{}, id).Error
+	})
 }
 
 func (s *InboundService) GetInbound(id int) (*model.Inbound, error) {
@@ -101,6 +115,9 @@ func (s *InboundService) GetInbound(id int) (*model.Inbound, error) {
 	inbound := &model.Inbound{}
 	err := db.Model(model.Inbound{}).First(inbound, id).Error
 	if err != nil {
+		return nil, err
+	}
+	if err := s.attachClients([]*model.Inbound{inbound}); err != nil {
 		return nil, err
 	}
 	return inbound, nil
@@ -134,7 +151,9 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) error {
 	oldInbound.Tag = fmt.Sprintf("inbound-%v", inbound.Port)
 
 	db := database.GetDB()
-	return db.Save(oldInbound).Error
+	return db.Transaction(func(tx *gorm.DB) error {
+		return s.saveInboundWithClients(tx, oldInbound)
+	})
 }
 
 func (s *InboundService) AddTraffic(traffics []*xray.Traffic) (err error) {
@@ -174,4 +193,143 @@ func (s *InboundService) DisableInvalidInbounds() (int64, error) {
 	err := result.Error
 	count := result.RowsAffected
 	return count, err
+}
+
+func (s *InboundService) saveInboundWithClients(tx *gorm.DB, inbound *model.Inbound) error {
+	settings, clients, err := splitSettingsClients(inbound.Settings)
+	if err != nil {
+		return err
+	}
+	inbound.Settings = settings
+	if err := tx.Save(inbound).Error; err != nil {
+		return err
+	}
+	if clients == nil {
+		return nil
+	}
+	if err := tx.Where("inbound_id = ?", inbound.Id).Delete(&model.InboundClient{}).Error; err != nil {
+		return err
+	}
+	for _, client := range clients {
+		record := &model.InboundClient{
+			InboundId: inbound.Id,
+			Email:     clientEmail(client),
+			ClientKey: clientKey(client),
+			Settings:  client,
+			Enable:    true,
+		}
+		if err := tx.Create(record).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *InboundService) attachClients(inbounds []*model.Inbound) error {
+	if len(inbounds) == 0 {
+		return nil
+	}
+
+	ids := make([]int, 0, len(inbounds))
+	index := make(map[int]*model.Inbound, len(inbounds))
+	for _, inbound := range inbounds {
+		ids = append(ids, inbound.Id)
+		index[inbound.Id] = inbound
+	}
+
+	db := database.GetDB()
+	var clients []model.InboundClient
+	if err := db.Where("inbound_id in ?", ids).Order("id asc").Find(&clients).Error; err != nil {
+		return err
+	}
+	grouped := make(map[int][]string)
+	for _, client := range clients {
+		grouped[client.InboundId] = append(grouped[client.InboundId], client.Settings)
+	}
+	for inboundId, clientSettings := range grouped {
+		inbound := index[inboundId]
+		if inbound == nil {
+			continue
+		}
+		settings, err := mergeSettingsClients(inbound.Settings, clientSettings)
+		if err != nil {
+			return err
+		}
+		inbound.Settings = settings
+	}
+	return nil
+}
+
+func splitSettingsClients(raw string) (string, []string, error) {
+	settings := map[string]interface{}{}
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+			return "", nil, err
+		}
+	}
+
+	rawClients, ok := settings["clients"].([]interface{})
+	if !ok {
+		return raw, nil, nil
+	}
+	clients := make([]string, 0, len(rawClients))
+	for _, client := range rawClients {
+		data, err := json.Marshal(client)
+		if err != nil {
+			return "", nil, err
+		}
+		clients = append(clients, string(data))
+	}
+	delete(settings, "clients")
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return "", nil, err
+	}
+	return string(data), clients, nil
+}
+
+func mergeSettingsClients(raw string, clientSettings []string) (string, error) {
+	settings := map[string]interface{}{}
+	if strings.TrimSpace(raw) != "" {
+		if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+			return "", err
+		}
+	}
+	clients := make([]interface{}, 0, len(clientSettings))
+	for _, clientRaw := range clientSettings {
+		var client interface{}
+		if err := json.Unmarshal([]byte(clientRaw), &client); err != nil {
+			return "", err
+		}
+		clients = append(clients, client)
+	}
+	settings["clients"] = clients
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func clientEmail(raw string) string {
+	client := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(raw), &client); err != nil {
+		return ""
+	}
+	email, _ := client["email"].(string)
+	return email
+}
+
+func clientKey(raw string) string {
+	client := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(raw), &client); err != nil {
+		return raw
+	}
+	for _, key := range []string{"id", "password", "email"} {
+		value, _ := client[key].(string)
+		if value != "" {
+			return value
+		}
+	}
+	return raw
 }

@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+	"time"
 	"x-ui/util/json_util"
 	"x-ui/xray"
 )
@@ -19,9 +20,10 @@ const (
 )
 
 type User struct {
-	Id       int    `json:"id" gorm:"primaryKey;autoIncrement"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Id           int    `json:"id" gorm:"primaryKey;autoIncrement"`
+	Username     string `json:"username"`
+	Password     string `json:"password"`
+	PasswordHash string `json:"-" gorm:"column:password_hash"`
 }
 
 type Inbound struct {
@@ -64,4 +66,20 @@ type Setting struct {
 	Id    int    `json:"id" form:"id" gorm:"primaryKey;autoIncrement"`
 	Key   string `json:"key" form:"key"`
 	Value string `json:"value" form:"value"`
+}
+
+type SchemaMigration struct {
+	Version   string    `gorm:"primaryKey"`
+	AppliedAt time.Time `gorm:"autoCreateTime"`
+}
+
+type InboundClient struct {
+	Id        int       `gorm:"primaryKey;autoIncrement"`
+	InboundId int       `gorm:"index;not null"`
+	Email     string    `gorm:"index"`
+	ClientKey string    `gorm:"index"`
+	Settings  string    `gorm:"not null"`
+	Enable    bool      `gorm:"default:true"`
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime"`
 }
