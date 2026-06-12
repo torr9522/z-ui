@@ -34,10 +34,11 @@ func runWebServer() {
 		log.Fatal("unknown log level:", config.GetLogLevel())
 	}
 
-	err := database.InitDB(config.GetDBPath())
+	bootstrap, err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		log.Fatal(err)
 	}
+	printBootstrapCredentials(bootstrap)
 
 	var server *web.Server
 
@@ -75,7 +76,7 @@ func runWebServer() {
 }
 
 func resetSetting() {
-	err := database.InitDB(config.GetDBPath())
+	_, err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -91,7 +92,7 @@ func resetSetting() {
 }
 
 func updateSetting(port int, username string, password string) {
-	err := database.InitDB(config.GetDBPath())
+	_, err := database.InitDB(config.GetDBPath())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -116,6 +117,16 @@ func updateSetting(port int, username string, password string) {
 			fmt.Println("set username and password success")
 		}
 	}
+}
+
+func printBootstrapCredentials(bootstrap *database.BootstrapCredentials) {
+	if bootstrap == nil {
+		return
+	}
+	fmt.Println("Initial x-ui credentials")
+	fmt.Printf("  Username: %s\n", bootstrap.Username)
+	fmt.Printf("  Password: %s\n", bootstrap.Password)
+	fmt.Printf("  Panel port: %d\n", bootstrap.WebPort)
 }
 
 func main() {

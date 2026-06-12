@@ -14,7 +14,7 @@ func MigrateFromV2UI(dbPath string) error {
 	if err != nil {
 		return common.NewError("init v2-ui database failed:", err)
 	}
-	err = database.InitDB(config.GetDBPath())
+	_, err = database.InitDB(config.GetDBPath())
 	if err != nil {
 		return common.NewError("init x-ui database failed:", err)
 	}

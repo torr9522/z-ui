@@ -13,7 +13,7 @@ func initTestDB(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "x-ui.db")
-	if err := database.InitDB(dbPath); err != nil {
+	if _, err := database.InitDB(dbPath); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
 	return dbPath
@@ -68,7 +68,7 @@ func TestInitDBCreatesBackupOnMigration(t *testing.T) {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("seed sqlite db: %v (%s)", err, string(out))
 	}
-	if err := database.InitDB(dbPath); err != nil {
+	if _, err := database.InitDB(dbPath); err != nil {
 		t.Fatalf("init db: %v", err)
 	}
 

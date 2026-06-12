@@ -1,7 +1,9 @@
 package random
 
 import (
-	"math/rand"
+	cryptorand "crypto/rand"
+	"encoding/binary"
+	mathrand "math/rand"
 	"time"
 )
 
@@ -13,7 +15,7 @@ var numUpperSeq [36]rune
 var allSeq [62]rune
 
 func init() {
-	rand.Seed(time.Now().UnixNano())
+	mathrand.Seed(time.Now().UnixNano())
 
 	for i := 0; i < 10; i++ {
 		numSeq[i] = rune('0' + i)
@@ -37,7 +39,35 @@ func init() {
 func Seq(n int) string {
 	runes := make([]rune, n)
 	for i := 0; i < n; i++ {
-		runes[i] = allSeq[rand.Intn(len(allSeq))]
+		runes[i] = allSeq[mathrand.Intn(len(allSeq))]
 	}
 	return string(runes)
+}
+
+func SecureSeq(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	runes := make([]rune, n)
+	buf := make([]byte, n*8)
+	if _, err := cryptorand.Read(buf); err != nil {
+		return Seq(n)
+	}
+	for i := 0; i < n; i++ {
+		value := binary.LittleEndian.Uint64(buf[i*8 : (i+1)*8])
+		runes[i] = allSeq[int(value%uint64(len(allSeq)))]
+	}
+	return string(runes)
+}
+
+func SecureInt(min int, max int) int {
+	if max <= min {
+		return min
+	}
+	var buf [8]byte
+	if _, err := cryptorand.Read(buf[:]); err != nil {
+		return min + mathrand.Intn(max-min)
+	}
+	value := binary.LittleEndian.Uint64(buf[:])
+	return min + int(value%uint64(max-min))
 }
