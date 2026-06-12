@@ -39,7 +39,22 @@ curl -fsS "${BASE_URL}/" >/dev/null
 
 COOKIE=/tmp/x-ui-rc.cookie
 rm -f "$COOKIE"
-curl -fsS -c "$COOKIE" -d 'username=admin&password=admin' "${BASE_URL}/login" >/tmp/x-ui-rc-login.json
+USERNAME="${XUI_SMOKE_USERNAME:-}"
+PASSWORD="${XUI_SMOKE_PASSWORD:-}"
+if [[ -z "$USERNAME" || -z "$PASSWORD" ]]; then
+  USERNAME="$(sed -n 's/^  Username: //p' /tmp/x-ui-rc.log | tail -n1)"
+  PASSWORD="$(sed -n 's/^  Password: //p' /tmp/x-ui-rc.log | tail -n1)"
+fi
+if [[ -z "$USERNAME" || -z "$PASSWORD" ]]; then
+  echo "unable to determine login credentials for rc smoke" >&2
+  exit 1
+fi
+
+curl -fsS -c "$COOKIE" \
+  --data-urlencode "username=${USERNAME}" \
+  --data-urlencode "password=${PASSWORD}" \
+  "${BASE_URL}/login" >/tmp/x-ui-rc-login.json
+node -e 'const fs=require("fs"); const obj=JSON.parse(fs.readFileSync("/tmp/x-ui-rc-login.json","utf8")); if(!obj.success){process.stderr.write(`login failed: ${obj.msg}\n`); process.exit(1)}'
 curl -fsS -b "$COOKIE" "${BASE_URL}/xui/inbounds" >/tmp/x-ui-rc-inbounds.html
 curl -fsS -b "$COOKIE" "${BASE_URL}/api/protocol/schema/vless" >/tmp/x-ui-rc-schema-vless.json
 curl -fsS -b "$COOKIE" "${BASE_URL}/api/protocol/schema/mixed" >/tmp/x-ui-rc-schema-mixed.json
