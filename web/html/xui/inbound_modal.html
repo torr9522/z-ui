@@ -109,7 +109,7 @@
                     return false;
                 }
                 if (field.name === 'clients.0.flow') {
-                    return this.inbound.xtls;
+                    return this.inbound.canEnableVision();
                 }
                 return true;
             },

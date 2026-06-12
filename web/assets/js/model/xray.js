@@ -967,6 +967,17 @@ class Inbound extends XrayCommonClass {
         return ["tcp", "http", "grpc"].includes(this.network);
     }
 
+    canEnableVision() {
+        switch (this.protocol) {
+            case Protocols.VLESS:
+            case Protocols.TROJAN:
+                break;
+            default:
+                return false;
+        }
+        return ["tls", "reality", "xtls"].includes(this.stream.security);
+    }
+
     canEnableStream() {
         switch (this.protocol) {
             case Protocols.VMESS:
