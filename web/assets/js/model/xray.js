@@ -3,6 +3,7 @@ const Protocols = {
     VLESS: 'vless',
     TROJAN: 'trojan',
     SHADOWSOCKS: 'shadowsocks',
+    MIXED: 'mixed',
     DOKODEMO: 'dokodemo-door',
     MTPROTO: 'mtproto',
     SOCKS: 'socks',
@@ -40,17 +41,74 @@ const RULE_DOMAIN = {
     SPEEDTEST: 'geosite:speedtest',
 };
 
-const FLOW_CONTROL = {
-    ORIGIN: "xtls-rprx-origin",
-    DIRECT: "xtls-rprx-direct",
-};
-
 Object.freeze(Protocols);
 Object.freeze(VmessMethods);
 Object.freeze(SSMethods);
 Object.freeze(RULE_IP);
 Object.freeze(RULE_DOMAIN);
-Object.freeze(FLOW_CONTROL);
+
+function getPathValue(obj, path, fallback=null) {
+    if (obj == null || ObjectUtil.isEmpty(path)) {
+        return fallback;
+    }
+    let current = obj;
+    for (const segment of path.split('.')) {
+        if (current == null) {
+            return fallback;
+        }
+        current = current[segment];
+    }
+    return current == null ? fallback : current;
+}
+
+function setPathValue(obj, path, value) {
+    const segments = path.split('.');
+    let current = obj;
+    for (let i = 0; i < segments.length - 1; ++i) {
+        const segment = segments[i];
+        const next = segments[i + 1];
+        if (current[segment] == null) {
+            current[segment] = /^\d+$/.test(next) ? [] : {};
+        }
+        current = current[segment];
+    }
+    current[segments[segments.length - 1]] = value;
+}
+
+function defaultProtocolSettings(protocol) {
+    switch (protocol) {
+        case Protocols.VMESS:
+            return {
+                clients: [{ id: RandomUtil.randomUUID(), alterId: 0 }],
+                disableInsecureEncryption: false,
+            };
+        case Protocols.VLESS:
+            return {
+                clients: [{ id: RandomUtil.randomUUID(), flow: '' }],
+                decryption: 'none',
+                fallbacks: [],
+            };
+        case Protocols.TROJAN:
+            return {
+                clients: [{ password: RandomUtil.randomSeq(10), flow: '' }],
+                fallbacks: [],
+            };
+        case Protocols.SHADOWSOCKS:
+            return {
+                method: SSMethods.AES_256_GCM,
+                password: RandomUtil.randomSeq(10),
+                network: 'tcp,udp',
+            };
+        case Protocols.MIXED:
+            return {
+                auth: 'noauth',
+                udp: true,
+                ip: '127.0.0.1',
+            };
+        default:
+            return {};
+    }
+}
 
 class XrayCommonClass {
 
@@ -689,9 +747,8 @@ class Inbound extends XrayCommonClass {
     get uuid() {
         switch (this.protocol) {
             case Protocols.VMESS:
-                return this.settings.vmesses[0].id;
             case Protocols.VLESS:
-                return this.settings.vlesses[0].id;
+                return this.settings.get('clients.0.id', '');
             default:
                 return "";
         }
@@ -701,9 +758,8 @@ class Inbound extends XrayCommonClass {
     get flow() {
         switch (this.protocol) {
             case Protocols.VLESS:
-                return this.settings.vlesses[0].flow;
             case Protocols.TROJAN:
-                return this.settings.clients[0].flow;
+                return this.settings.get('clients.0.flow', '');
             default:
                 return "";
         }
@@ -713,7 +769,7 @@ class Inbound extends XrayCommonClass {
     get alterId() {
         switch (this.protocol) {
             case Protocols.VMESS:
-                return this.settings.vmesses[0].alterId;
+                return this.settings.get('clients.0.alterId', 0);
             default:
                 return "";
         }
@@ -734,9 +790,9 @@ class Inbound extends XrayCommonClass {
     get password() {
         switch (this.protocol) {
             case Protocols.TROJAN:
-                return this.settings.clients[0].password;
+                return this.settings.get('clients.0.password', '');
             case Protocols.SHADOWSOCKS:
-                return this.settings.password;
+                return this.settings.get('password', '');
             case Protocols.SOCKS:
             case Protocols.HTTP:
                 return this.settings.accounts[0].pass;
@@ -749,7 +805,7 @@ class Inbound extends XrayCommonClass {
     get method() {
         switch (this.protocol) {
             case Protocols.SHADOWSOCKS:
-                return this.settings.method;
+                return this.settings.get('method', '');
             default:
                 return "";
         }
@@ -932,8 +988,8 @@ class Inbound extends XrayCommonClass {
             ps: remark,
             add: address,
             port: this.port,
-            id: this.settings.vmesses[0].id,
-            aid: this.settings.vmesses[0].alterId,
+            id: this.settings.get('clients.0.id', ''),
+            aid: this.settings.get('clients.0.alterId', 0),
             net: network,
             type: type,
             host: host,
@@ -945,7 +1001,7 @@ class Inbound extends XrayCommonClass {
 
     genVLESSLink(address = '', remark='') {
         const settings = this.settings;
-        const uuid = settings.vlesses[0].id;
+        const uuid = settings.get('clients.0.id', '');
         const port = this.port;
         const type = this.stream.network;
         const params = new Map();
@@ -1007,7 +1063,7 @@ class Inbound extends XrayCommonClass {
         }
 
         if (this.xtls) {
-            params.set("flow", this.settings.vlesses[0].flow);
+            params.set("flow", this.settings.get('clients.0.flow', ''));
         }
 
         const link = `vless://${uuid}@${address}:${port}`;
@@ -1025,13 +1081,13 @@ class Inbound extends XrayCommonClass {
         if (!ObjectUtil.isEmpty(server)) {
             address = server;
         }
-        return 'ss://' + safeBase64(settings.method + ':' + settings.password + '@' + address + ':' + this.port)
+        return 'ss://' + safeBase64(settings.get('method', '') + ':' + settings.get('password', '') + '@' + address + ':' + this.port)
             + '#' + encodeURIComponent(remark);
     }
 
     genTrojanLink(address='', remark='') {
         let settings = this.settings;
-        return `trojan://${settings.clients[0].password}@${address}:${this.port}#${encodeURIComponent(remark)}`;
+        return `trojan://${settings.get('clients.0.password', '')}@${address}:${this.port}#${encodeURIComponent(remark)}`;
     }
 
     genLink(address='', remark='') {
@@ -1081,10 +1137,12 @@ Inbound.Settings = class extends XrayCommonClass {
 
     static getSettings(protocol) {
         switch (protocol) {
-            case Protocols.VMESS: return new Inbound.VmessSettings(protocol);
-            case Protocols.VLESS: return new Inbound.VLESSSettings(protocol);
-            case Protocols.TROJAN: return new Inbound.TrojanSettings(protocol);
-            case Protocols.SHADOWSOCKS: return new Inbound.ShadowsocksSettings(protocol);
+            case Protocols.VMESS:
+            case Protocols.VLESS:
+            case Protocols.TROJAN:
+            case Protocols.SHADOWSOCKS:
+            case Protocols.MIXED:
+                return new Inbound.ProtocolSettings(protocol);
             case Protocols.DOKODEMO: return new Inbound.DokodemoSettings(protocol);
             case Protocols.MTPROTO: return new Inbound.MtprotoSettings(protocol);
             case Protocols.SOCKS: return new Inbound.SocksSettings(protocol);
@@ -1095,10 +1153,12 @@ Inbound.Settings = class extends XrayCommonClass {
 
     static fromJson(protocol, json) {
         switch (protocol) {
-            case Protocols.VMESS: return Inbound.VmessSettings.fromJson(json);
-            case Protocols.VLESS: return Inbound.VLESSSettings.fromJson(json);
-            case Protocols.TROJAN: return Inbound.TrojanSettings.fromJson(json);
-            case Protocols.SHADOWSOCKS: return Inbound.ShadowsocksSettings.fromJson(json);
+            case Protocols.VMESS:
+            case Protocols.VLESS:
+            case Protocols.TROJAN:
+            case Protocols.SHADOWSOCKS:
+            case Protocols.MIXED:
+                return Inbound.ProtocolSettings.fromJson(protocol, json);
             case Protocols.DOKODEMO: return Inbound.DokodemoSettings.fromJson(json);
             case Protocols.MTPROTO: return Inbound.MtprotoSettings.fromJson(json);
             case Protocols.SOCKS: return Inbound.SocksSettings.fromJson(json);
@@ -1112,115 +1172,53 @@ Inbound.Settings = class extends XrayCommonClass {
     }
 };
 
-Inbound.VmessSettings = class extends Inbound.Settings {
-    constructor(protocol,
-                vmesses=[new Inbound.VmessSettings.Vmess()],
-                disableInsecureEncryption=false) {
+Inbound.ProtocolSettings = class extends Inbound.Settings {
+    constructor(protocol, data=null) {
         super(protocol);
-        this.vmesses = vmesses;
-        this.disableInsecure = disableInsecureEncryption;
+        this.data = ObjectUtil.isEmpty(data) ? defaultProtocolSettings(protocol) : data;
+        this.ensureDefaults();
     }
 
-    indexOfVmessById(id) {
-        return this.vmesses.findIndex(vmess => vmess.id === id);
-    }
-
-    addVmess(vmess) {
-        if (this.indexOfVmessById(vmess.id) >= 0) {
-            return false;
-        }
-        this.vmesses.push(vmess);
-    }
-
-    delVmess(vmess) {
-        const i = this.indexOfVmessById(vmess.id);
-        if (i >= 0) {
-            this.vmesses.splice(i, 1);
+    ensureDefaults() {
+        const defaults = defaultProtocolSettings(this.protocol);
+        for (const key of Object.keys(defaults)) {
+            if (this.data[key] == null) {
+                this.data[key] = ObjectUtil.clone(defaults[key]);
+            }
         }
     }
 
-    static fromJson(json={}) {
-        return new Inbound.VmessSettings(
-            Protocols.VMESS,
-            json.clients.map(client => Inbound.VmessSettings.Vmess.fromJson(client)),
-            ObjectUtil.isEmpty(json.disableInsecureEncryption) ? false : json.disableInsecureEncryption,
-        );
+    get(path, fallback=null) {
+        return getPathValue(this.data, path, fallback);
     }
 
-    toJson() {
-        return {
-            clients: Inbound.VmessSettings.toJsonArray(this.vmesses),
-            disableInsecureEncryption: this.disableInsecure,
-        };
-    }
-};
-Inbound.VmessSettings.Vmess = class extends XrayCommonClass {
-    constructor(id=RandomUtil.randomUUID(), alterId=0) {
-        super();
-        this.id = id;
-        this.alterId = alterId;
-    }
-
-    static fromJson(json={}) {
-        return new Inbound.VmessSettings.Vmess(
-            json.id,
-            json.alterId,
-        );
-    }
-};
-
-Inbound.VLESSSettings = class extends Inbound.Settings {
-    constructor(protocol,
-                vlesses=[new Inbound.VLESSSettings.VLESS()],
-                decryption='none',
-                fallbacks=[],) {
-        super(protocol);
-        this.vlesses = vlesses;
-        this.decryption = decryption;
-        this.fallbacks = fallbacks;
+    set(path, value) {
+        setPathValue(this.data, path, value);
     }
 
     addFallback() {
-        this.fallbacks.push(new Inbound.VLESSSettings.Fallback());
+        if (!Array.isArray(this.data.fallbacks)) {
+            this.data.fallbacks = [];
+        }
+        this.data.fallbacks.push(new Inbound.ProtocolSettings.Fallback());
     }
 
     delFallback(index) {
-        this.fallbacks.splice(index, 1);
-    }
-
-    static fromJson(json={}) {
-        return new Inbound.VLESSSettings(
-            Protocols.VLESS,
-            json.clients.map(client => Inbound.VLESSSettings.VLESS.fromJson(client)),
-            json.decryption,
-            Inbound.VLESSSettings.Fallback.fromJson(json.fallbacks),
-        );
+        if (Array.isArray(this.data.fallbacks)) {
+            this.data.fallbacks.splice(index, 1);
+        }
     }
 
     toJson() {
-        return {
-            clients: Inbound.VLESSSettings.toJsonArray(this.vlesses),
-            decryption: this.decryption,
-            fallbacks: Inbound.VLESSSettings.toJsonArray(this.fallbacks),
-        };
-    }
-};
-Inbound.VLESSSettings.VLESS = class extends XrayCommonClass {
-
-    constructor(id=RandomUtil.randomUUID(), flow=FLOW_CONTROL.DIRECT) {
-        super();
-        this.id = id;
-        this.flow = flow;
+        return this.data;
     }
 
-    static fromJson(json={}) {
-        return new Inbound.VLESSSettings.VLESS(
-            json.id,
-            json.flow,
-        );
+    static fromJson(protocol, json={}) {
+        return new Inbound.ProtocolSettings(protocol, json || {});
     }
 };
-Inbound.VLESSSettings.Fallback = class extends XrayCommonClass {
+
+Inbound.ProtocolSettings.Fallback = class extends XrayCommonClass {
     constructor(name="", alpn='', path='', dest='', xver=0) {
         super();
         this.name = name;
@@ -1242,147 +1240,6 @@ Inbound.VLESSSettings.Fallback = class extends XrayCommonClass {
             dest: this.dest,
             xver: xver,
         }
-    }
-
-    static fromJson(json=[]) {
-        const fallbacks = [];
-        for (let fallback of json) {
-            fallbacks.push(new Inbound.VLESSSettings.Fallback(
-                fallback.name,
-                fallback.alpn,
-                fallback.path,
-                fallback.dest,
-                fallback.xver,
-            ))
-        }
-        return fallbacks;
-    }
-};
-
-Inbound.TrojanSettings = class extends Inbound.Settings {
-    constructor(protocol,
-                clients=[new Inbound.TrojanSettings.Client()],
-                fallbacks=[],) {
-        super(protocol);
-        this.clients = clients;
-        this.fallbacks = fallbacks;
-    }
-
-    addTrojanFallback() {
-        this.fallbacks.push(new Inbound.TrojanSettings.Fallback());
-    }
-
-    delTrojanFallback(index) {
-        this.fallbacks.splice(index, 1);
-    }
-
-    toJson() {
-        return {
-            clients: Inbound.TrojanSettings.toJsonArray(this.clients),
-            fallbacks: Inbound.TrojanSettings.toJsonArray(this.fallbacks),
-        };
-    }
-
-    static fromJson(json={}) {
-        const clients = [];
-        for (const c of json.clients) {
-            clients.push(Inbound.TrojanSettings.Client.fromJson(c));
-        }
-        return new Inbound.TrojanSettings(
-            Protocols.TROJAN,
-            clients,
-            Inbound.TrojanSettings.Fallback.fromJson(json.fallbacks),);
-    }
-};
-Inbound.TrojanSettings.Client = class extends XrayCommonClass {
-    constructor(password=RandomUtil.randomSeq(10), flow=FLOW_CONTROL.DIRECT) {
-        super();
-        this.password = password;
-        this.flow = flow;
-    }
-
-    toJson() {
-        return {
-            password: this.password,
-            flow: this.flow,
-        };
-    }
-
-    static fromJson(json={}) {
-        return new Inbound.TrojanSettings.Client(
-            json.password,
-            json.flow,
-        );
-    }
-
-};
-
-Inbound.TrojanSettings.Fallback = class extends XrayCommonClass {
-    constructor(name="", alpn='', path='', dest='', xver=0) {
-        super();
-        this.name = name;
-        this.alpn = alpn;
-        this.path = path;
-        this.dest = dest;
-        this.xver = xver;
-    }
-
-    toJson() {
-        let xver = this.xver;
-        if (!Number.isInteger(xver)) {
-            xver = 0;
-        }
-        return {
-            name: this.name,
-            alpn: this.alpn,
-            path: this.path,
-            dest: this.dest,
-            xver: xver,
-        }
-    }
-
-    static fromJson(json=[]) {
-        const fallbacks = [];
-        for (let fallback of json) {
-            fallbacks.push(new Inbound.TrojanSettings.Fallback(
-                fallback.name,
-                fallback.alpn,
-                fallback.path,
-                fallback.dest,
-                fallback.xver,
-            ))
-        }
-        return fallbacks;
-    }
-};
-
-Inbound.ShadowsocksSettings = class extends Inbound.Settings {
-    constructor(protocol,
-                method=SSMethods.AES_256_GCM,
-                password=RandomUtil.randomSeq(10),
-                network='tcp,udp'
-    ) {
-        super(protocol);
-        this.method = method;
-        this.password = password;
-        this.network = network;
-    }
-
-    static fromJson(json={}) {
-        return new Inbound.ShadowsocksSettings(
-            Protocols.SHADOWSOCKS,
-            json.method,
-            json.password,
-            json.network,
-        );
-    }
-
-    toJson() {
-        return {
-            method: this.method,
-            password: this.password,
-            network: this.network,
-        };
     }
 };
 

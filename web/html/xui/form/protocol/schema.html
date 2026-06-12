@@ -1,0 +1,55 @@
+{{define "form/protocolSchema"}}
+<a-form layout="inline" v-if="inModal.protocolSchema">
+    <template v-for="field in inModal.protocolSchema.fields">
+        <a-form-item v-if="isVisibleProtocolField(field)" :label="field.label">
+            <a-input v-if="field.type === 'text' || field.type === 'uuid' || field.type === 'password'"
+                     v-model.trim="protocolField(field).value"></a-input>
+            <a-input v-else-if="field.type === 'number'" type="number"
+                     v-model.number="protocolField(field).value"></a-input>
+            <a-switch v-else-if="field.type === 'switch'"
+                      v-model="protocolField(field).value"></a-switch>
+            <a-select v-else-if="field.type === 'select'"
+                      v-model="protocolField(field).value" style="width: 170px">
+                <a-select-option v-for="option in field.options" :value="option.value">
+                    [[ option.label ]]
+                </a-select-option>
+            </a-select>
+        </a-form-item>
+    </template>
+</a-form>
+
+<template v-if="hasFallbacksField()">
+    <a-form layout="inline">
+        <a-form-item label="fallbacks">
+            <a-row>
+                <a-button type="primary" size="small" @click="inbound.settings.addFallback()">
+                    +
+                </a-button>
+            </a-row>
+        </a-form-item>
+    </a-form>
+    <a-form v-for="(fallback, index) in protocolFallbacks()" layout="inline">
+        <a-divider>
+            fallback[[ index + 1 ]]
+            <a-icon type="delete" @click="() => inbound.settings.delFallback(index)"
+                    style="color: rgb(255, 77, 79);cursor: pointer;"/>
+        </a-divider>
+        <a-form-item label="name">
+            <a-input v-model="fallback.name"></a-input>
+        </a-form-item>
+        <a-form-item label="alpn">
+            <a-input v-model="fallback.alpn"></a-input>
+        </a-form-item>
+        <a-form-item label="path">
+            <a-input v-model="fallback.path"></a-input>
+        </a-form-item>
+        <a-form-item label="dest">
+            <a-input v-model="fallback.dest"></a-input>
+        </a-form-item>
+        <a-form-item label="xver">
+            <a-input type="number" v-model.number="fallback.xver"></a-input>
+        </a-form-item>
+        <a-divider v-if="protocolFallbacks().length - 1 === index"/>
+    </a-form>
+</template>
+{{end}}

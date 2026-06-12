@@ -23,6 +23,7 @@ func (m *trojanModule) FormSchema() FormSchema {
 				{Label: "无", Value: ""},
 				{Label: "xtls-rprx-vision", Value: "xtls-rprx-vision"},
 			}},
+			{Name: "fallbacks", Label: "fallbacks", Type: "fallbacks"},
 		},
 	}
 }

@@ -24,6 +24,7 @@ func (m *vlessModule) FormSchema() FormSchema {
 				{Label: "xtls-rprx-vision", Value: "xtls-rprx-vision"},
 			}},
 			{Name: "decryption", Label: "decryption", Type: "hidden", Default: "none"},
+			{Name: "fallbacks", Label: "fallbacks", Type: "fallbacks"},
 		},
 	}
 }

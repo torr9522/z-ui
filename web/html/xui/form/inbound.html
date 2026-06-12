@@ -54,24 +54,9 @@
     </a-form-item>
 </a-form>
 
-<!-- vmess settings -->
-<template v-if="inbound.protocol === Protocols.VMESS">
-    {{template "form/vmess"}}
-</template>
-
-<!-- vless settings -->
-<template v-if="inbound.protocol === Protocols.VLESS">
-    {{template "form/vless"}}
-</template>
-
-<!-- trojan settings -->
-<template v-if="inbound.protocol === Protocols.TROJAN">
-    {{template "form/trojan"}}
-</template>
-
-<!-- shadowsocks -->
-<template v-if="inbound.protocol === Protocols.SHADOWSOCKS">
-    {{template "form/shadowsocks"}}
+<!-- protocol settings -->
+<template v-if="isSchemaProtocol(inbound.protocol)">
+    {{template "form/protocolSchema"}}
 </template>
 
 <!-- dokodemo-door -->

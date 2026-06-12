@@ -63,6 +63,7 @@
         VLESS: Protocols.VLESS,
         TROJAN: Protocols.TROJAN,
         SHADOWSOCKS: Protocols.SHADOWSOCKS,
+        MIXED: Protocols.MIXED,
         DOKODEMO: Protocols.DOKODEMO,
         SOCKS: Protocols.SOCKS,
         HTTP: Protocols.HTTP,
@@ -83,6 +84,47 @@
             }
         },
         methods: {
+            isSchemaProtocol(protocol) {
+                return [
+                    Protocols.VMESS,
+                    Protocols.VLESS,
+                    Protocols.TROJAN,
+                    Protocols.SHADOWSOCKS,
+                    Protocols.MIXED,
+                ].includes(protocol);
+            },
+            protocolField(field) {
+                const settings = this.inbound.settings;
+                return {
+                    get value() {
+                        return settings.get(field.name, field.default);
+                    },
+                    set value(value) {
+                        settings.set(field.name, value);
+                    }
+                };
+            },
+            isVisibleProtocolField(field) {
+                if (field.type === 'hidden' || field.type === 'fallbacks') {
+                    return false;
+                }
+                if (field.name === 'clients.0.flow') {
+                    return this.inbound.xtls;
+                }
+                return true;
+            },
+            hasFallbacksField() {
+                const schema = this.inModal.protocolSchema;
+                return schema && schema.fields && schema.fields.some(field => field.type === 'fallbacks');
+            },
+            protocolFallbacks() {
+                const fallbacks = this.inbound.settings.get('fallbacks', []);
+                if (!Array.isArray(fallbacks)) {
+                    this.inbound.settings.set('fallbacks', []);
+                    return [];
+                }
+                return fallbacks;
+            },
             streamNetworkChange(oldValue) {
                 if (oldValue === 'kcp') {
                     this.inModal.inbound.tls = false;
