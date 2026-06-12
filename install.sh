@@ -9,6 +9,7 @@ SERVICE_PATH="/etc/systemd/system/x-ui.service"
 COMMAND_PATH="/usr/bin/x-ui"
 REPO="${XUI_REPO:-FranzKafkaYu/x-ui}"
 VERSION="${1:-${XUI_VERSION:-}}"
+TMP_DIR=""
 
 log() {
   printf '%s\n' "$*"
@@ -109,7 +110,7 @@ download_package() {
     url="https://github.com/${REPO}/releases/download/${VERSION}/x-ui-linux-${ARCH}.tar.gz"
   fi
 
-  log "Downloading ${APP_NAME} package: ${url}"
+  log "Downloading ${APP_NAME} package: ${url}" >&2
   curl -fL --retry 3 --connect-timeout 15 -o "${package_path}" "${url}"
   [[ -s "${package_path}" ]] || fail "downloaded package is empty"
   tar -tzf "${package_path}" >/dev/null
@@ -219,6 +220,14 @@ start_service() {
     journalctl -u x-ui -n 50 --no-pager || true
     fail "failed to start x-ui service"
   fi
+  for _ in $(seq 1 30); do
+    if curl -fsS "http://127.0.0.1:${PORT}/" >/dev/null 2>&1; then
+      return
+    fi
+    sleep 1
+  done
+  journalctl -u x-ui -n 50 --no-pager || true
+  fail "x-ui service started but panel did not become reachable"
 }
 
 server_ip() {
@@ -267,13 +276,13 @@ main() {
   detect_arch
   install_dependencies
 
-  local tmp_dir package_path
-  tmp_dir="$(mktemp -d)"
-  trap 'rm -rf "${tmp_dir}"' EXIT
+  local package_path
+  TMP_DIR="$(mktemp -d)"
+  trap 'rm -rf "${TMP_DIR}"' EXIT
 
-  package_path="$(download_package "${tmp_dir}")"
+  package_path="$(download_package "${TMP_DIR}")"
   backup_existing_db
-  install_files "${package_path}" "${tmp_dir}"
+  install_files "${package_path}" "${TMP_DIR}"
   initialize_panel
   start_service
   print_success
