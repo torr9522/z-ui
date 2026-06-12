@@ -18,11 +18,13 @@ import (
 	xtvmessinbound "github.com/xtls/xray-core/proxy/vmess/inbound"
 	"google.golang.org/protobuf/proto"
 	"x-ui/database/model"
+	xprotocol "x-ui/protocol"
 	"x-ui/util/common"
 	"x-ui/xray"
 )
 
 type Builder struct {
+	registry *xprotocol.Registry
 }
 
 type Snapshot struct {
@@ -51,11 +53,22 @@ func (b *Builder) Build(templateConfig string, inbounds []*model.Inbound) (*Snap
 	}
 
 	enabledTags := make([]string, 0)
+	registry := b.registry
+	if registry == nil {
+		registry = xprotocol.DefaultRegistry()
+	}
 	for _, inbound := range inbounds {
 		if !inbound.Enable {
 			continue
 		}
-		inboundConfig := inbound.GenXrayInboundConfig()
+		module, err := registry.Get(string(inbound.Protocol))
+		if err != nil {
+			return nil, err
+		}
+		inboundConfig, err := module.BuildInbound(inbound)
+		if err != nil {
+			return nil, err
+		}
 		rawConfig.InboundConfigs = append(rawConfig.InboundConfigs, *inboundConfig)
 		enabledTags = append(enabledTags, inbound.Tag)
 	}

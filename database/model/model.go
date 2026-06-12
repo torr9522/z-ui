@@ -13,6 +13,7 @@ const (
 	VLESS       Protocol = "vless"
 	Dokodemo    Protocol = "Dokodemo-door"
 	Http        Protocol = "http"
+	Mixed       Protocol = "mixed"
 	Trojan      Protocol = "trojan"
 	Shadowsocks Protocol = "shadowsocks"
 )
