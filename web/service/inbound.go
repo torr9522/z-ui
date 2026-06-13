@@ -8,6 +8,7 @@ import (
 	"time"
 	"x-ui/database"
 	"x-ui/database/model"
+	"x-ui/protocol"
 	"x-ui/util/common"
 	"x-ui/xray"
 )
@@ -196,6 +197,16 @@ func (s *InboundService) DisableInvalidInbounds() (int64, error) {
 }
 
 func (s *InboundService) saveInboundWithClients(tx *gorm.DB, inbound *model.Inbound) error {
+	module, err := protocol.DefaultRegistry().Get(string(inbound.Protocol))
+	if err != nil {
+		return err
+	}
+	if inbound, err = module.Migrate(inbound); err != nil {
+		return err
+	}
+	if err := module.Validate(inbound); err != nil {
+		return err
+	}
 	settings, clients, err := splitSettingsClients(inbound.Settings)
 	if err != nil {
 		return err

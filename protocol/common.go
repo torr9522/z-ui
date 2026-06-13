@@ -180,6 +180,25 @@ func normalizeVLESSSettings(raw string) (string, error) {
 	return encodeObject(settings)
 }
 
+func normalizeVMessSettings(raw string) (string, error) {
+	settings, err := decodeObject(raw)
+	if err != nil {
+		return "", err
+	}
+	clients, ok := settings["clients"].([]interface{})
+	if !ok {
+		return encodeObject(settings)
+	}
+	for _, item := range clients {
+		client, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		client["alterId"] = 0
+	}
+	return encodeObject(settings)
+}
+
 func normalizeTrojanFlows(raw string) (string, error) {
 	settings, err := decodeObject(raw)
 	if err != nil {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"x-ui/database"
 	"x-ui/database/model"
@@ -57,6 +58,58 @@ func TestInboundServicePersistsClientsSeparately(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("expected 1 inbound client, got %d", count)
+	}
+}
+
+func TestInboundServiceNormalizesTrojanFlowOnSave(t *testing.T) {
+	initTestDB(t)
+
+	service := &InboundService{}
+	inbound := &model.Inbound{
+		UserId:   1,
+		Enable:   true,
+		Port:     24002,
+		Protocol: model.Trojan,
+		Tag:      "inbound-24002",
+		Settings: `{"clients":[{"password":"secret-pass","flow":"xtls-rprx-vision"}]}`,
+		Sniffing: `{}`,
+	}
+	if err := service.AddInbound(inbound); err != nil {
+		t.Fatalf("add inbound: %v", err)
+	}
+
+	saved, err := service.GetInbound(inbound.Id)
+	if err != nil {
+		t.Fatalf("get inbound: %v", err)
+	}
+	if strings.Contains(saved.Settings, `"flow"`) {
+		t.Fatalf("expected trojan flow to be removed from settings, got %s", saved.Settings)
+	}
+}
+
+func TestInboundServiceNormalizesVMessAlterIDOnSave(t *testing.T) {
+	initTestDB(t)
+
+	service := &InboundService{}
+	inbound := &model.Inbound{
+		UserId:   1,
+		Enable:   true,
+		Port:     24003,
+		Protocol: model.VMess,
+		Tag:      "inbound-24003",
+		Settings: `{"clients":[{"id":"11111111-1111-1111-1111-111111111111","alterId":64}]}`,
+		Sniffing: `{}`,
+	}
+	if err := service.AddInbound(inbound); err != nil {
+		t.Fatalf("add inbound: %v", err)
+	}
+
+	saved, err := service.GetInbound(inbound.Id)
+	if err != nil {
+		t.Fatalf("get inbound: %v", err)
+	}
+	if !strings.Contains(saved.Settings, `"alterId":0`) {
+		t.Fatalf("expected vmess alterId to normalize to 0, got %s", saved.Settings)
 	}
 }
 
