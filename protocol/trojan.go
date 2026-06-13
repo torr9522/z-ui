@@ -19,21 +19,22 @@ func (m *trojanModule) FormSchema() FormSchema {
 		SupportsClients: true,
 		Fields: []FormField{
 			{Name: "clients.0.password", Label: "密码", Type: "password", Required: true},
-			{Name: "clients.0.flow", Label: "flow", Type: "select", Default: "", Options: []FormOption{
-				{Label: "无", Value: ""},
-				{Label: "xtls-rprx-vision", Value: "xtls-rprx-vision"},
-			}},
 			{Name: "fallbacks", Label: "fallbacks", Type: "fallbacks"},
 		},
 	}
 }
 
 func (m *trojanModule) Validate(inbound *model.Inbound) error {
-	settings, err := decodeObject(inbound.Settings)
+	settings, err := normalizeTrojanFlows(inbound.Settings)
 	if err != nil {
 		return err
 	}
-	if err := validateClients(settings, "clients"); err != nil {
+	inbound.Settings = settings
+	decoded, err := decodeObject(settings)
+	if err != nil {
+		return err
+	}
+	if err := validateClients(decoded, "clients"); err != nil {
 		return err
 	}
 	_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
@@ -48,6 +49,7 @@ func (m *trojanModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig
 	if err != nil {
 		return nil, err
 	}
+	inbound.Settings = settings
 	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
 	if err != nil {
 		return nil, err

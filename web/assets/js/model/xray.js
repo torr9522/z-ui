@@ -113,7 +113,7 @@ function defaultProtocolSettings(protocol) {
             };
         case Protocols.TROJAN:
             return {
-                clients: [{ password: RandomUtil.randomSeq(10), flow: '' }],
+                clients: [{ password: RandomUtil.randomSeq(10) }],
                 fallbacks: [],
             };
         case Protocols.SHADOWSOCKS:
@@ -865,7 +865,6 @@ class Inbound extends XrayCommonClass {
     get flow() {
         switch (this.protocol) {
             case Protocols.VLESS:
-            case Protocols.TROJAN:
                 return this.settings.get('clients.0.flow', '');
             default:
                 return "";
