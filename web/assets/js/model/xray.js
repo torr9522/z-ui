@@ -10,6 +10,15 @@ const Protocols = {
     HTTP: 'http',
 };
 
+const LegacyProtocols = [
+    Protocols.DOKODEMO,
+    Protocols.MTPROTO,
+    Protocols.SOCKS,
+    Protocols.HTTP,
+];
+
+const LegacyNetworks = ['kcp', 'quic', 'http', 'splithttp'];
+
 const VmessMethods = {
     AES_128_GCM: 'aes-128-gcm',
     CHACHA20_POLY1305: 'chacha20-poly1305',
@@ -42,6 +51,8 @@ const RULE_DOMAIN = {
 };
 
 Object.freeze(Protocols);
+Object.freeze(LegacyProtocols);
+Object.freeze(LegacyNetworks);
 Object.freeze(VmessMethods);
 Object.freeze(SSMethods);
 Object.freeze(RULE_IP);
@@ -721,8 +732,10 @@ class StreamSettings extends XrayCommonClass {
             tlsSettings: this.isTls ? this.tls.toJson() : undefined,
             realitySettings: this.isReality ? this.reality.toJson() : undefined,
             tcpSettings: network === 'tcp' ? this.tcp.toJson() : undefined,
+            kcpSettings: network === 'kcp' ? this.kcp.toJson() : undefined,
             wsSettings: network === 'ws' ? this.ws.toJson() : undefined,
             xhttpSettings: network === 'xhttp' ? this.xhttp.toJson() : undefined,
+            quicSettings: network === 'quic' ? this.quic.toJson() : undefined,
             grpcSettings: network === 'grpc' ? this.grpc.toJson() : undefined,
         };
     }
@@ -1002,6 +1015,7 @@ class Inbound extends XrayCommonClass {
         switch (this.network) {
             case "tcp":
             case "ws":
+            case "quic":
             case "xhttp":
             case "grpc":
                 return true;
@@ -1065,6 +1079,14 @@ class Inbound extends XrayCommonClass {
         this.stream = new StreamSettings();
         this.tag = '';
         this.sniffing = new Sniffing();
+    }
+
+    isLegacyProtocol() {
+        return LegacyProtocols.includes(this.protocol);
+    }
+
+    isLegacyNetwork() {
+        return LegacyNetworks.includes(this.network);
     }
 
     applyTransportParams(params) {

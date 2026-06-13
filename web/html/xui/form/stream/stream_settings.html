@@ -3,10 +3,7 @@
 <a-form layout="inline">
     <a-form-item label="传输">
         <a-select v-model="inbound.stream.network" @change="streamNetworkChange">
-            <a-select-option value="tcp">tcp</a-select-option>
-            <a-select-option value="ws">ws</a-select-option>
-            <a-select-option value="xhttp">xhttp</a-select-option>
-            <a-select-option value="grpc">grpc</a-select-option>
+            <a-select-option v-for="network in selectableNetworks()" :key="network" :value="network">[[ network ]]</a-select-option>
         </a-select>
     </a-form-item>
 </a-form>
@@ -26,8 +23,23 @@
     {{template "form/streamXHTTP"}}
 </template>
 
+<!-- legacy http -->
+<template v-if="inbound.stream.network === 'http'">
+    {{template "form/streamHTTP"}}
+</template>
+
 <!-- grpc -->
 <template v-if="inbound.stream.network === 'grpc'">
     {{template "form/streamGRPC"}}
+</template>
+
+<!-- legacy kcp -->
+<template v-if="inbound.stream.network === 'kcp'">
+    {{template "form/streamKCP"}}
+</template>
+
+<!-- legacy quic -->
+<template v-if="inbound.stream.network === 'quic'">
+    {{template "form/streamQUIC"}}
 </template>
 {{end}}

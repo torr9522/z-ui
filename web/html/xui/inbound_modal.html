@@ -90,6 +90,41 @@
                     Protocols.MIXED,
                 ].includes(protocol);
             },
+            selectableProtocols() {
+                const options = Object.values(Protocols).filter(protocol => !LegacyProtocols.includes(protocol));
+                if (this.inbound.isLegacyProtocol() && !options.includes(this.inbound.protocol)) {
+                    options.push(this.inbound.protocol);
+                }
+                return options;
+            },
+            selectableNetworks() {
+                const options = ['tcp', 'ws', 'xhttp', 'grpc'];
+                if (this.inbound.isLegacyNetwork()) {
+                    if (this.inbound.network === 'http' || this.inbound.network === 'splithttp') {
+                        if (!options.includes('http')) {
+                            options.push('http');
+                        }
+                    } else if (!options.includes(this.inbound.network)) {
+                        options.push(this.inbound.network);
+                    }
+                }
+                return options;
+            },
+            legacyProtocolWarning() {
+                if (!this.inbound.isLegacyProtocol()) {
+                    return '';
+                }
+                return `当前协议 ${this.inbound.protocol} 为 Legacy / 兼容模式，仅支持读取与兼容保存，不再作为新建推荐选项。`;
+            },
+            legacyNetworkWarning() {
+                if (!this.inbound.isLegacyNetwork()) {
+                    return '';
+                }
+                if (['http', 'splithttp'].includes(this.inbound.network)) {
+                    return '当前传输为 Legacy / 兼容模式，保存时将统一归一化为 xhttp。';
+                }
+                return `当前传输 ${this.inbound.network} 为 Legacy / 兼容模式，仅支持读取与兼容保存。`;
+            },
             protocolField(field) {
                 const settings = this.inbound.settings;
                 return {
@@ -123,7 +158,7 @@
                 return fallbacks;
             },
             streamNetworkChange(oldValue) {
-                if (['kcp', 'quic', 'http', 'splithttp'].includes(oldValue)) {
+                if (['http', 'splithttp'].includes(oldValue)) {
                     this.inModal.inbound.stream.network = 'xhttp';
                 }
             }

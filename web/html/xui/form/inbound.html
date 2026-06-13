@@ -9,7 +9,7 @@
     </a-form-item>
     <a-form-item label='{{ i18n "protocol" }}'>
         <a-select v-model="inbound.protocol" style="width: 160px;">
-            <a-select-option v-for="p in Protocols" :key="p" :value="p">[[ p ]]</a-select-option>
+            <a-select-option v-for="p in selectableProtocols()" :key="p" :value="p">[[ p ]]</a-select-option>
         </a-select>
     </a-form-item>
     <a-form-item>
@@ -53,6 +53,18 @@
                        v-model="dbInbound._expiryTime" style="width: 300px;"></a-date-picker>
     </a-form-item>
 </a-form>
+
+<a-alert v-if="legacyProtocolWarning()"
+         type="warning"
+         show-icon
+         :message="legacyProtocolWarning()"
+         style="margin-bottom: 16px;"></a-alert>
+
+<a-alert v-if="legacyNetworkWarning()"
+         type="warning"
+         show-icon
+         :message="legacyNetworkWarning()"
+         style="margin-bottom: 16px;"></a-alert>
 
 <!-- protocol settings -->
 <template v-if="isSchemaProtocol(inbound.protocol)">
