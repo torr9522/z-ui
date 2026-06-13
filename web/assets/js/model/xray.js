@@ -660,7 +660,7 @@ class StreamSettings extends XrayCommonClass {
     }
 
     get isXTls() {
-        return this.security === "xtls";
+        return false;
     }
 
     get isReality() {
@@ -677,13 +677,14 @@ class StreamSettings extends XrayCommonClass {
 
     set isXTls(isXTls) {
         if (isXTls) {
-            this.security = 'xtls';
+            this.security = 'tls';
         } else {
             this.security = 'none';
         }
     }
 
     static fromJson(json={}) {
+        json = ObjectUtil.clone(json || {});
         if (json.network === 'http' || json.network === 'splithttp') {
             json.network = 'xhttp';
             if (!json.xhttpSettings) {
@@ -693,6 +694,7 @@ class StreamSettings extends XrayCommonClass {
         let tls;
         if (json.security === "xtls") {
             tls = TlsStreamSettings.fromJson(json.xtlsSettings);
+            json.security = 'tls';
         } else {
             tls = TlsStreamSettings.fromJson(json.tlsSettings);
         }
@@ -717,14 +719,10 @@ class StreamSettings extends XrayCommonClass {
             network: network,
             security: this.security,
             tlsSettings: this.isTls ? this.tls.toJson() : undefined,
-            xtlsSettings: this.isXTls ? this.tls.toJson() : undefined,
             realitySettings: this.isReality ? this.reality.toJson() : undefined,
             tcpSettings: network === 'tcp' ? this.tcp.toJson() : undefined,
-            kcpSettings: network === 'kcp' ? this.kcp.toJson() : undefined,
             wsSettings: network === 'ws' ? this.ws.toJson() : undefined,
-            httpSettings: network === 'http' ? this.http.toJson() : undefined,
             xhttpSettings: network === 'xhttp' ? this.xhttp.toJson() : undefined,
-            quicSettings: network === 'quic' ? this.quic.toJson() : undefined,
             grpcSettings: network === 'grpc' ? this.grpc.toJson() : undefined,
         };
     }
@@ -777,9 +775,6 @@ class Inbound extends XrayCommonClass {
     set protocol(protocol) {
         this._protocol = protocol;
         this.settings = Inbound.Settings.getSettings(protocol);
-        if (protocol === Protocols.TROJAN) {
-            this.tls = true;
-        }
     }
 
     get tls() {
@@ -790,27 +785,19 @@ class Inbound extends XrayCommonClass {
         if (isTls) {
             this.stream.security = 'tls';
         } else {
-            if (this.protocol === Protocols.TROJAN) {
-                this.xtls = true;
-            } else {
-                this.stream.security = 'none';
-            }
+            this.stream.security = 'none';
         }
     }
 
     get xtls() {
-        return this.stream.security === 'xtls';
+        return false;
     }
 
     set xtls(isXTls) {
         if (isXTls) {
-            this.stream.security = 'xtls';
+            this.stream.security = 'tls';
         } else {
-            if (this.protocol === Protocols.TROJAN) {
-                this.tls = true;
-            } else {
-                this.stream.security = 'none';
-            }
+            this.stream.security = 'none';
         }
     }
 
@@ -919,7 +906,7 @@ class Inbound extends XrayCommonClass {
     }
 
     get serverName() {
-        if (this.stream.isTls || this.stream.isXTls) {
+        if (this.stream.isTls) {
             return this.stream.tls.server;
         } else if (this.stream.isReality) {
             return this.stream.reality.serverNames[0];
@@ -1015,8 +1002,7 @@ class Inbound extends XrayCommonClass {
         switch (this.network) {
             case "tcp":
             case "ws":
-            case "http":
-            case "quic":
+            case "xhttp":
             case "grpc":
                 return true;
             default:
@@ -1029,14 +1015,7 @@ class Inbound extends XrayCommonClass {
     }
 
     canEnableXTls() {
-        switch (this.protocol) {
-            case Protocols.VLESS:
-            case Protocols.TROJAN:
-                break;
-            default:
-                return false;
-        }
-        return this.network === "tcp";
+        return false;
     }
 
     canEnableReality() {
@@ -1051,20 +1030,14 @@ class Inbound extends XrayCommonClass {
     }
 
     canEnableVision() {
-        switch (this.protocol) {
-            case Protocols.VLESS:
-            case Protocols.TROJAN:
-                break;
-            default:
-                return false;
-        }
-        return ["tls", "reality", "xtls"].includes(this.stream.security);
+        return this.protocol === Protocols.VLESS && ["tls", "reality"].includes(this.stream.security);
     }
 
     canEnableStream() {
         switch (this.protocol) {
             case Protocols.VMESS:
             case Protocols.VLESS:
+            case Protocols.TROJAN:
             case Protocols.SHADOWSOCKS:
                 return true;
             default:
@@ -1244,11 +1217,7 @@ class Inbound extends XrayCommonClass {
         const port = this.port;
         const params = new Map();
         params.set("type", this.stream.network);
-        if (this.xtls) {
-            params.set("security", "xtls");
-        } else {
-            params.set("security", this.stream.security);
-        }
+        params.set("security", this.stream.security);
         this.applyTransportParams(params);
         address = this.applySecurityParams(params, address);
 
@@ -1279,11 +1248,7 @@ class Inbound extends XrayCommonClass {
         let settings = this.settings;
         const url = new URL(`trojan://${settings.get('clients.0.password', '')}@${address}:${this.port}`);
         url.searchParams.set("type", this.stream.network);
-        if (this.stream.security === 'xtls') {
-            url.searchParams.set("security", "tls");
-        } else {
-            url.searchParams.set("security", this.stream.security);
-        }
+        url.searchParams.set("security", this.stream.security);
         this.applyTransportParams(url.searchParams);
         address = this.applySecurityParams(url.searchParams, address);
         url.username = settings.get('clients.0.password', '');

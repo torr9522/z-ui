@@ -28,9 +28,8 @@
     <p>xhttp mode: <a-tag color="green">[[ inbound.xhttpMode ]]</a-tag></p>
 </template>
 
-<template v-if="inbound.tls || inbound.xtls">
+<template v-if="inbound.tls">
     <p v-if="inbound.tls">tls: <a-tag color="green">开启</a-tag></p>
-    <p v-if="inbound.xtls">xtls: <a-tag color="green">开启</a-tag></p>
 </template>
 <template v-else-if="inbound.stream.isReality">
     <p>reality: <a-tag color="green">开启</a-tag></p>
@@ -40,9 +39,6 @@
 </template>
 <p v-if="inbound.tls">
     tls域名: <a-tag :color="inbound.serverName ? 'green' : 'orange'">[[ inbound.serverName ? inbound.serverName : "无" ]]</a-tag>
-</p>
-<p v-if="inbound.xtls">
-    xtls域名: <a-tag :color="inbound.serverName ? 'green' : 'orange'">[[ inbound.serverName ? inbound.serverName : "无" ]]</a-tag>
 </p>
 <template v-if="inbound.stream.isReality">
     <p>reality serverName: <a-tag :color="inbound.realityServerName ? 'green' : 'orange'">[[ inbound.realityServerName ? inbound.realityServerName : "无" ]]</a-tag></p>
@@ -66,7 +62,7 @@
 
     <template v-if="dbInbound.isVLess">
         <p>uuid: <a-tag color="green">[[ inbound.uuid ]]</a-tag></p>
-        <p v-if="inbound.isXTls">flow: <a-tag color="green">[[ inbound.flow ]]</a-tag></p>
+        <p v-if="inbound.canEnableVision() && inbound.flow">flow: <a-tag color="green">[[ inbound.flow ]]</a-tag></p>
     </template>
 
     <template v-if="dbInbound.isTrojan">
