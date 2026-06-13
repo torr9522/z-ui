@@ -64,9 +64,6 @@
         TROJAN: Protocols.TROJAN,
         SHADOWSOCKS: Protocols.SHADOWSOCKS,
         MIXED: Protocols.MIXED,
-        DOKODEMO: Protocols.DOKODEMO,
-        SOCKS: Protocols.SOCKS,
-        HTTP: Protocols.HTTP,
     };
 
     new Vue({
@@ -126,8 +123,8 @@
                 return fallbacks;
             },
             streamNetworkChange(oldValue) {
-                if (oldValue === 'kcp') {
-                    this.inModal.inbound.tls = false;
+                if (['kcp', 'quic', 'http', 'splithttp'].includes(oldValue)) {
+                    this.inModal.inbound.stream.network = 'xhttp';
                 }
             }
         },
