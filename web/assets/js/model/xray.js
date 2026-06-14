@@ -446,11 +446,12 @@ class HttpStreamSettings extends XrayCommonClass {
 }
 
 class XHTTPStreamSettings extends XrayCommonClass {
-    constructor(path='/', host='', mode='stream-one') {
+    constructor(path='/', host='', mode='stream-one', extra='') {
         super();
         this.path = path;
         this.host = host;
         this.mode = mode;
+        this.extra = extra;
     }
 
     static fromJson(json={}) {
@@ -458,19 +459,35 @@ class XHTTPStreamSettings extends XrayCommonClass {
         if (Array.isArray(host)) {
             host = host.length > 0 ? host[0] : '';
         }
+        let extra = json.extra || '';
+        if (!ObjectUtil.isEmpty(extra) && typeof extra !== 'string') {
+            extra = JSON.stringify(extra, null, 2);
+        }
         return new XHTTPStreamSettings(
             json.path,
             host,
             json.mode || 'stream-one',
+            extra,
         );
     }
 
     toJson() {
-        return {
+        const settings = {
             path: this.path,
             host: this.host,
             mode: this.mode,
+        };
+        if (!ObjectUtil.isEmpty(this.extra)) {
+            try {
+                const extra = JSON.parse(this.extra);
+                if (extra && typeof extra === 'object' && !Array.isArray(extra)) {
+                    Object.assign(settings, extra);
+                }
+            } catch (_) {
+                settings.extra = this.extra;
+            }
         }
+        return settings;
     }
 }
 
@@ -600,13 +617,17 @@ class RealityStreamSettings extends XrayCommonClass {
                 publicKey='',
                 shortIds=[''],
                 serverNames=[''],
-                spiderX='/') {
+                spiderX='/',
+                dest='',
+                fingerprint='chrome') {
         super();
         this.privateKey = privateKey;
         this.publicKey = publicKey;
         this.shortIds = shortIds && shortIds.length > 0 ? shortIds : [''];
         this.serverNames = serverNames && serverNames.length > 0 ? serverNames : [''];
         this.spiderX = spiderX;
+        this.dest = dest;
+        this.fingerprint = fingerprint || 'chrome';
     }
 
     static fromJson(json={}) {
@@ -616,6 +637,8 @@ class RealityStreamSettings extends XrayCommonClass {
             json.shortIds,
             json.serverNames,
             json.spiderX,
+            json.dest,
+            json.fingerprint,
         );
     }
 
@@ -627,6 +650,8 @@ class RealityStreamSettings extends XrayCommonClass {
             shortIds: this.shortIds.filter(shortId => !ObjectUtil.isEmpty(shortId)),
             serverNames: this.serverNames.filter(serverName => !ObjectUtil.isEmpty(serverName)),
             spiderX: this.spiderX,
+            dest: this.dest,
+            fingerprint: this.fingerprint,
         };
     }
 }

@@ -128,6 +128,27 @@
             legacyFlowWarning() {
                 return this.inbound.legacyFlowWarning();
             },
+            async generateRealityKeyPair() {
+                const msg = await HttpUtil.post('/api/protocol/reality/keypair');
+                if (!msg.success) {
+                    return;
+                }
+                this.inbound.stream.reality.privateKey = msg.obj.privateKey;
+                this.inbound.stream.reality.publicKey = msg.obj.publicKey;
+            },
+            generateRealityShortIds() {
+                this.inbound.stream.reality.shortIds = [this.randomHex(8)];
+            },
+            randomHex(length) {
+                const alphabet = '0123456789abcdef';
+                let value = '';
+                const bytes = new Uint8Array(length);
+                window.crypto.getRandomValues(bytes);
+                for (let i = 0; i < bytes.length; i++) {
+                    value += alphabet[bytes[i] % alphabet.length];
+                }
+                return value;
+            },
             protocolField(field) {
                 const settings = this.inbound.settings;
                 return {

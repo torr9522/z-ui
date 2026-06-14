@@ -45,13 +45,33 @@
 <!-- reality settings -->
 <a-form v-if="inbound.stream.security === 'reality'"
         layout="inline">
+    <a-form-item label="dest">
+        <a-input v-model.trim="inbound.stream.reality.dest"></a-input>
+    </a-form-item>
+    <a-form-item label="fingerprint">
+        <a-select v-model="inbound.stream.reality.fingerprint" style="width: 140px;">
+            <a-select-option value="chrome">chrome</a-select-option>
+            <a-select-option value="firefox">firefox</a-select-option>
+            <a-select-option value="safari">safari</a-select-option>
+            <a-select-option value="ios">ios</a-select-option>
+            <a-select-option value="android">android</a-select-option>
+            <a-select-option value="edge">edge</a-select-option>
+            <a-select-option value="randomized">randomized</a-select-option>
+        </a-select>
+    </a-form-item>
     <a-form-item label="privateKey">
         <a-input v-model.trim="inbound.stream.reality.privateKey"></a-input>
     </a-form-item>
     <a-form-item label="publicKey">
         <a-input v-model.trim="inbound.stream.reality.publicKey"></a-input>
     </a-form-item>
+    <a-form-item>
+        <a-button size="small" @click="generateRealityKeyPair">Generate Key Pair</a-button>
+    </a-form-item>
     <a-form-item label="shortIds">
+        <a-row>
+            <a-button size="small" @click="generateRealityShortIds">Generate Short IDs</a-button>
+        </a-row>
         <a-row v-for="(shortId, index) in inbound.stream.reality.shortIds">
             <a-input v-model.trim="inbound.stream.reality.shortIds[index]"></a-input>
         </a-row>
