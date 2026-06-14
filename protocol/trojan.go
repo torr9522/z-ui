@@ -19,7 +19,6 @@ func (m *trojanModule) FormSchema() FormSchema {
 		SupportsClients: true,
 		Fields: []FormField{
 			{Name: "clients.0.password", Label: "密码", Type: "password", Required: true},
-			{Name: "fallbacks", Label: "fallbacks", Type: "fallbacks"},
 		},
 	}
 }

@@ -275,7 +275,7 @@
                     ...inbound.toJson(),
                     settings: inbound.settings.toString(),
                     streamSettings: inbound.toJson().streamSettings ? inbound.stream.toString() : '',
-                    sniffing: inbound.canSniffing() ? inbound.sniffing.toString() : '{}',
+                    sniffing: '{}',
                 };
                 await this.submit('/xui/inbound/add', data, inModal);
             },
@@ -291,7 +291,7 @@
                     ...inbound.toJson(),
                     settings: inbound.settings.toString(),
                     streamSettings: inbound.toJson().streamSettings ? inbound.stream.toString() : '',
-                    sniffing: inbound.canSniffing() ? inbound.sniffing.toString() : '{}',
+                    sniffing: dbInbound.sniffing || '{}',
                 };
                 await this.submit(`/xui/inbound/update/${dbInbound.id}`, data, inModal);
             },

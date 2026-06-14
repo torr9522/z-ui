@@ -179,25 +179,13 @@
                 };
             },
             isVisibleProtocolField(field) {
-                if (field.type === 'hidden' || field.type === 'fallbacks') {
+                if (field.type === 'hidden') {
                     return false;
                 }
                 if (field.name === 'clients.0.flow') {
                     return this.inbound.canEnableVision();
                 }
                 return true;
-            },
-            hasFallbacksField() {
-                const schema = this.inModal.protocolSchema;
-                return schema && schema.fields && schema.fields.some(field => field.type === 'fallbacks');
-            },
-            protocolFallbacks() {
-                const fallbacks = this.inbound.settings.get('fallbacks', []);
-                if (!Array.isArray(fallbacks)) {
-                    this.inbound.settings.set('fallbacks', []);
-                    return [];
-                }
-                return fallbacks;
             },
             streamNetworkChange(oldValue) {
                 if (['http', 'splithttp'].includes(oldValue)) {

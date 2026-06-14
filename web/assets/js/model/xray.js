@@ -107,12 +107,10 @@ function defaultProtocolSettings(protocol) {
             return {
                 clients: [{ id: RandomUtil.randomUUID(), flow: '' }],
                 decryption: 'none',
-                fallbacks: [],
             };
         case Protocols.TROJAN:
             return {
                 clients: [{ password: RandomUtil.randomSeq(10) }],
-                fallbacks: [],
             };
         case Protocols.SHADOWSOCKS:
             return {
@@ -1104,15 +1102,7 @@ class Inbound extends XrayCommonClass {
     }
 
     canSniffing() {
-        switch (this.protocol) {
-            case Protocols.VMESS:
-            case Protocols.VLESS:
-            case Protocols.TROJAN:
-            case Protocols.SHADOWSOCKS:
-                return true;
-            default:
-                return false;
-        }
+        return false;
     }
 
     reset() {
@@ -1358,7 +1348,7 @@ class Inbound extends XrayCommonClass {
             settings: this.settings instanceof XrayCommonClass ? this.settings.toJson() : this.settings,
             streamSettings: streamSettings,
             tag: this.tag,
-            sniffing: this.canSniffing() ? this.sniffing.toJson() : {},
+            sniffing: {},
         };
     }
 }
@@ -1432,50 +1422,12 @@ Inbound.ProtocolSettings = class extends Inbound.Settings {
         setPathValue(this.data, path, value);
     }
 
-    addFallback() {
-        if (!Array.isArray(this.data.fallbacks)) {
-            this.data.fallbacks = [];
-        }
-        this.data.fallbacks.push(new Inbound.ProtocolSettings.Fallback());
-    }
-
-    delFallback(index) {
-        if (Array.isArray(this.data.fallbacks)) {
-            this.data.fallbacks.splice(index, 1);
-        }
-    }
-
     toJson() {
         return this.data;
     }
 
     static fromJson(protocol, json={}) {
         return new Inbound.ProtocolSettings(protocol, json || {});
-    }
-};
-
-Inbound.ProtocolSettings.Fallback = class extends XrayCommonClass {
-    constructor(name="", alpn='', path='', dest='', xver=0) {
-        super();
-        this.name = name;
-        this.alpn = alpn;
-        this.path = path;
-        this.dest = dest;
-        this.xver = xver;
-    }
-
-    toJson() {
-        let xver = this.xver;
-        if (!Number.isInteger(xver)) {
-            xver = 0;
-        }
-        return {
-            name: this.name,
-            alpn: this.alpn,
-            path: this.path,
-            dest: this.dest,
-            xver: xver,
-        }
     }
 };
 
