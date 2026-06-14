@@ -84,7 +84,8 @@ func html(c *gin.Context, name string, title string, data gin.H) {
 
 func getContext(h gin.H) gin.H {
 	a := gin.H{
-		"cur_ver": config.GetVersion(),
+		"cur_ver":   config.GetVersion(),
+		"asset_ver": config.GetAssetVersion(),
 	}
 	if h != nil {
 		for key, value := range h {

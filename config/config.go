@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 //go:embed version
@@ -12,6 +13,8 @@ var version string
 
 //go:embed name
 var name string
+
+var assetVersion = resolveAssetVersion()
 
 type LogLevel string
 
@@ -24,6 +27,10 @@ const (
 
 func GetVersion() string {
 	return strings.TrimSpace(version)
+}
+
+func GetAssetVersion() string {
+	return assetVersion
 }
 
 func GetName() string {
@@ -47,4 +54,11 @@ func IsDebug() bool {
 
 func GetDBPath() string {
 	return fmt.Sprintf("/etc/%s/%s.db", GetName(), GetName())
+}
+
+func resolveAssetVersion() string {
+	if value := strings.TrimSpace(os.Getenv("XUI_ASSET_VERSION")); value != "" {
+		return value
+	}
+	return fmt.Sprintf("%s-%d", GetVersion(), time.Now().Unix())
 }
