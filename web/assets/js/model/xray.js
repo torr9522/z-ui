@@ -102,7 +102,7 @@ function defaultProtocolSettings(protocol) {
     switch (protocol) {
         case Protocols.VMESS:
             return {
-                clients: [{ id: RandomUtil.randomUUID(), alterId: 0 }],
+                clients: [{ id: RandomUtil.randomUUID() }],
                 disableInsecureEncryption: false,
             };
         case Protocols.VLESS:
@@ -123,11 +123,7 @@ function defaultProtocolSettings(protocol) {
                 network: 'tcp,udp',
             };
         case Protocols.MIXED:
-            return {
-                auth: 'noauth',
-                udp: true,
-                ip: '127.0.0.1',
-            };
+            return {};
         default:
             return {};
     }
@@ -1352,7 +1348,7 @@ class Inbound extends XrayCommonClass {
 
     toJson() {
         let streamSettings;
-        if (this.canEnableStream() || this.protocol === Protocols.TROJAN) {
+        if (this.canEnableStream()) {
             streamSettings = this.stream.toJson();
         }
         return {
@@ -1362,7 +1358,7 @@ class Inbound extends XrayCommonClass {
             settings: this.settings instanceof XrayCommonClass ? this.settings.toJson() : this.settings,
             streamSettings: streamSettings,
             tag: this.tag,
-            sniffing: this.sniffing.toJson(),
+            sniffing: this.canSniffing() ? this.sniffing.toJson() : {},
         };
     }
 }

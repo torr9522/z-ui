@@ -272,11 +272,9 @@
                     enable: dbInbound.enable,
                     expiryTime: dbInbound.expiryTime,
 
-                    listen: inbound.listen,
-                    port: inbound.port,
-                    protocol: inbound.protocol,
+                    ...inbound.toJson(),
                     settings: inbound.settings.toString(),
-                    streamSettings: inbound.canEnableStream() || inbound.protocol === Protocols.TROJAN ? inbound.stream.toString() : '',
+                    streamSettings: inbound.toJson().streamSettings ? inbound.stream.toString() : '',
                     sniffing: inbound.canSniffing() ? inbound.sniffing.toString() : '{}',
                 };
                 await this.submit('/xui/inbound/add', data, inModal);
@@ -290,11 +288,9 @@
                     enable: dbInbound.enable,
                     expiryTime: dbInbound.expiryTime,
 
-                    listen: inbound.listen,
-                    port: inbound.port,
-                    protocol: inbound.protocol,
+                    ...inbound.toJson(),
                     settings: inbound.settings.toString(),
-                    streamSettings: inbound.canEnableStream() || inbound.protocol === Protocols.TROJAN ? inbound.stream.toString() : '',
+                    streamSettings: inbound.toJson().streamSettings ? inbound.stream.toString() : '',
                     sniffing: inbound.canSniffing() ? inbound.sniffing.toString() : '{}',
                 };
                 await this.submit(`/xui/inbound/update/${dbInbound.id}`, data, inModal);
