@@ -18,14 +18,7 @@ func (m *mixedModule) FormSchema() FormSchema {
 	return FormSchema{
 		Protocol:        m.name,
 		SupportsClients: false,
-		Fields: []FormField{
-			{Name: "auth", Label: "认证", Type: "select", Default: "noauth", Options: []FormOption{
-				{Label: "noauth", Value: "noauth"},
-				{Label: "password", Value: "password"},
-			}},
-			{Name: "udp", Label: "UDP", Type: "switch", Default: true},
-			{Name: "ip", Label: "IP", Type: "text", Default: "127.0.0.1"},
-		},
+		Fields:          []FormField{},
 	}
 }
 

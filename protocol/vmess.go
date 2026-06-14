@@ -19,7 +19,6 @@ func (m *vmessModule) FormSchema() FormSchema {
 		SupportsClients: true,
 		Fields: []FormField{
 			{Name: "clients.0.id", Label: "id", Type: "uuid", Required: true},
-			{Name: "clients.0.alterId", Label: "额外 ID", Type: "number", Default: 0},
 			{Name: "disableInsecureEncryption", Label: "禁用不安全加密", Type: "switch", Default: false},
 		},
 	}

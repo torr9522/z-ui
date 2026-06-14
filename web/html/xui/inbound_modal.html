@@ -128,6 +128,9 @@
             legacyFlowWarning() {
                 return this.inbound.legacyFlowWarning();
             },
+            legacyVMessWarning() {
+                return this.inbound.legacyVMessWarning();
+            },
             async generateRealityKeyPair() {
                 const msg = await HttpUtil.post('/api/protocol/reality/keypair');
                 if (!msg.success) {

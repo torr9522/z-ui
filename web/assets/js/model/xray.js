@@ -910,6 +910,17 @@ class Inbound extends XrayCommonClass {
         return '';
     }
 
+    legacyVMessWarning() {
+        if (this.protocol !== Protocols.VMESS) {
+            return '';
+        }
+        const alterId = Number(this.alterId || 0);
+        if (alterId > 0) {
+            return 'Legacy VMess Warning: 保存时 alterId 将归一化为 0。';
+        }
+        return '';
+    }
+
     // VMess
     get alterId() {
         switch (this.protocol) {
