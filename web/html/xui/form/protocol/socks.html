@@ -5,11 +5,11 @@
                   @change="checked => inbound.settings.auth = checked ? 'password' : 'noauth'"></a-switch>
     </a-form-item>
     <template v-if="inbound.settings.auth === 'password'">
-        <a-form-item label="用户名">
-            <a-input v-model.trim="inbound.settings.accounts[0].user"></a-input>
-        </a-form-item>
-        <a-form-item label="密码">
-            <a-input v-model.trim="inbound.settings.accounts[0].pass"></a-input>
+        <a-form-item label="accounts">
+            <a-button type="primary" size="small"
+                      @click="inbound.settings.addAccount(new Inbound.SocksSettings.SocksAccount())">
+                +
+            </a-button>
         </a-form-item>
     </template>
     <a-form-item label="启用 udp">
@@ -19,5 +19,20 @@
                  label="IP">
         <a-input v-model.trim="inbound.settings.ip"></a-input>
     </a-form-item>
+</a-form>
+<a-form v-if="inbound.settings.auth === 'password'" v-for="(account, index) in inbound.settings.accounts" layout="inline">
+    <a-divider>
+        account[[ index + 1 ]]
+        <a-icon v-if="inbound.settings.accounts.length > 1" type="delete"
+                @click="() => inbound.settings.delAccount(index)"
+                style="color: rgb(255, 77, 79);cursor: pointer;"/>
+    </a-divider>
+    <a-form-item label="用户名">
+        <a-input v-model.trim="account.user"></a-input>
+    </a-form-item>
+    <a-form-item label="密码">
+        <a-input v-model.trim="account.pass"></a-input>
+    </a-form-item>
+    <a-divider v-if="inbound.settings.accounts.length - 1 === index"/>
 </a-form>
 {{end}}

@@ -63,7 +63,11 @@
         VLESS: Protocols.VLESS,
         TROJAN: Protocols.TROJAN,
         SHADOWSOCKS: Protocols.SHADOWSOCKS,
+        DOKODEMO: Protocols.DOKODEMO,
+        SOCKS: Protocols.SOCKS,
+        HTTP: Protocols.HTTP,
         MIXED: Protocols.MIXED,
+        TUNNEL: Protocols.TUNNEL,
     };
 
     new Vue({
@@ -91,7 +95,18 @@
                 ].includes(protocol);
             },
             selectableProtocols() {
-                const options = Object.values(Protocols).filter(protocol => !LegacyProtocols.includes(protocol));
+                const ordered = [
+                    Protocols.VMESS,
+                    Protocols.VLESS,
+                    Protocols.TROJAN,
+                    Protocols.SHADOWSOCKS,
+                    Protocols.DOKODEMO,
+                    Protocols.SOCKS,
+                    Protocols.HTTP,
+                    Protocols.MIXED,
+                    Protocols.TUNNEL,
+                ];
+                const options = ordered.filter(protocol => !LegacyProtocols.includes(protocol));
                 if (this.inbound.isLegacyProtocol() && !options.includes(this.inbound.protocol)) {
                     options.push(this.inbound.protocol);
                 }

@@ -3,18 +3,16 @@ const Protocols = {
     VLESS: 'vless',
     TROJAN: 'trojan',
     SHADOWSOCKS: 'shadowsocks',
-    MIXED: 'mixed',
     DOKODEMO: 'dokodemo-door',
-    MTPROTO: 'mtproto',
     SOCKS: 'socks',
     HTTP: 'http',
+    MIXED: 'mixed',
+    TUNNEL: 'tunnel',
+    MTPROTO: 'mtproto',
 };
 
 const LegacyProtocols = [
-    Protocols.DOKODEMO,
     Protocols.MTPROTO,
-    Protocols.SOCKS,
-    Protocols.HTTP,
 ];
 
 const LegacyNetworks = ['kcp', 'quic', 'http', 'splithttp'];
@@ -929,10 +927,11 @@ class Inbound extends XrayCommonClass {
 
     // Socks & HTTP
     get username() {
+        const account = this.settings.accounts?.[0];
         switch (this.protocol) {
             case Protocols.SOCKS:
             case Protocols.HTTP:
-                return this.settings.accounts[0].user;
+                return account ? account.user : "";
             default:
                 return "";
         }
@@ -947,7 +946,7 @@ class Inbound extends XrayCommonClass {
                 return this.settings.get('password', '');
             case Protocols.SOCKS:
             case Protocols.HTTP:
-                return this.settings.accounts[0].pass;
+                return this.settings.accounts?.[0]?.pass || "";
             default:
                 return "";
         }
@@ -1335,11 +1334,12 @@ class Inbound extends XrayCommonClass {
     }
 
     static fromJson(json={}) {
+        const protocol = (json.protocol || '').toLowerCase();
         return new Inbound(
             json.port,
             json.listen,
-            json.protocol,
-            Inbound.Settings.fromJson(json.protocol, json.settings),
+            protocol,
+            Inbound.Settings.fromJson(protocol, json.settings),
             StreamSettings.fromJson(json.streamSettings),
             json.tag,
             Sniffing.fromJson(json.sniffing),
@@ -1378,6 +1378,7 @@ Inbound.Settings = class extends XrayCommonClass {
             case Protocols.MIXED:
                 return new Inbound.ProtocolSettings(protocol);
             case Protocols.DOKODEMO: return new Inbound.DokodemoSettings(protocol);
+            case Protocols.TUNNEL: return new Inbound.DokodemoSettings(protocol);
             case Protocols.MTPROTO: return new Inbound.MtprotoSettings(protocol);
             case Protocols.SOCKS: return new Inbound.SocksSettings(protocol);
             case Protocols.HTTP: return new Inbound.HttpSettings(protocol);
@@ -1394,6 +1395,7 @@ Inbound.Settings = class extends XrayCommonClass {
             case Protocols.MIXED:
                 return Inbound.ProtocolSettings.fromJson(protocol, json);
             case Protocols.DOKODEMO: return Inbound.DokodemoSettings.fromJson(json);
+            case Protocols.TUNNEL: return Inbound.DokodemoSettings.fromJson(json, Protocols.TUNNEL);
             case Protocols.MTPROTO: return Inbound.MtprotoSettings.fromJson(json);
             case Protocols.SOCKS: return Inbound.SocksSettings.fromJson(json);
             case Protocols.HTTP: return Inbound.HttpSettings.fromJson(json);
@@ -1478,19 +1480,21 @@ Inbound.ProtocolSettings.Fallback = class extends XrayCommonClass {
 };
 
 Inbound.DokodemoSettings = class extends Inbound.Settings {
-    constructor(protocol, address, port, network='tcp,udp') {
+    constructor(protocol, address='', port=0, network='tcp,udp', followRedirect=false) {
         super(protocol);
         this.address = address;
         this.port = port;
         this.network = network;
+        this.followRedirect = followRedirect;
     }
 
-    static fromJson(json={}) {
+    static fromJson(json={}, protocol=Protocols.DOKODEMO) {
         return new Inbound.DokodemoSettings(
-            Protocols.DOKODEMO,
+            protocol,
             json.address,
             json.port,
             json.network,
+            !!json.followRedirect,
         );
     }
 
@@ -1499,6 +1503,7 @@ Inbound.DokodemoSettings = class extends Inbound.Settings {
             address: this.address,
             port: this.port,
             network: this.network,
+            followRedirect: this.followRedirect,
         };
     }
 };
@@ -1537,7 +1542,7 @@ Inbound.SocksSettings = class extends Inbound.Settings {
     constructor(protocol, auth='password', accounts=[new Inbound.SocksSettings.SocksAccount()], udp=false, ip='127.0.0.1') {
         super(protocol);
         this.auth = auth;
-        this.accounts = accounts;
+        this.accounts = Array.isArray(accounts) && accounts.length > 0 ? accounts : [new Inbound.SocksSettings.SocksAccount()];
         this.udp = udp;
         this.ip = ip;
     }
@@ -1551,18 +1556,21 @@ Inbound.SocksSettings = class extends Inbound.Settings {
     }
 
     static fromJson(json={}) {
-        let accounts;
+        let accounts = [new Inbound.SocksSettings.SocksAccount()];
         if (json.auth === 'password') {
-            accounts = json.accounts.map(
+            accounts = (json.accounts || []).map(
                 account => Inbound.SocksSettings.SocksAccount.fromJson(account)
-            )
+            );
+            if (accounts.length === 0) {
+                accounts = [new Inbound.SocksSettings.SocksAccount()];
+            }
         }
         return new Inbound.SocksSettings(
             Protocols.SOCKS,
-            json.auth,
+            json.auth || 'password',
             accounts,
-            json.udp,
-            json.ip,
+            !!json.udp,
+            json.ip || '127.0.0.1',
         );
     }
 
@@ -1588,9 +1596,10 @@ Inbound.SocksSettings.SocksAccount = class extends XrayCommonClass {
 };
 
 Inbound.HttpSettings = class extends Inbound.Settings {
-    constructor(protocol, accounts=[new Inbound.HttpSettings.HttpAccount()]) {
+    constructor(protocol, accounts=[new Inbound.HttpSettings.HttpAccount()], allowTransparent=false) {
         super(protocol);
-        this.accounts = accounts;
+        this.accounts = Array.isArray(accounts) && accounts.length > 0 ? accounts : [new Inbound.HttpSettings.HttpAccount()];
+        this.allowTransparent = allowTransparent;
     }
 
     addAccount(account) {
@@ -1604,13 +1613,15 @@ Inbound.HttpSettings = class extends Inbound.Settings {
     static fromJson(json={}) {
         return new Inbound.HttpSettings(
             Protocols.HTTP,
-            json.accounts.map(account => Inbound.HttpSettings.HttpAccount.fromJson(account)),
+            (json.accounts || []).map(account => Inbound.HttpSettings.HttpAccount.fromJson(account)),
+            !!json.allowTransparent,
         );
     }
 
     toJson() {
         return {
             accounts: Inbound.HttpSettings.toJsonArray(this.accounts),
+            allowTransparent: this.allowTransparent,
         };
     }
 };

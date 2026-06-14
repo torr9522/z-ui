@@ -29,9 +29,10 @@ func DefaultRegistry() *Registry {
 		registry.Register(newTrojanModule())
 		registry.Register(newShadowsocksModule())
 		registry.Register(newMixedModule())
-		registry.Register(newPassthroughModule("dokodemo-door", false))
-		registry.Register(newPassthroughModule("http", false))
-		registry.Register(newPassthroughModule("socks", false))
+		registry.Register(newDokodemoModule("dokodemo-door"))
+		registry.Register(newSocksModule())
+		registry.Register(newHTTPModule())
+		registry.Register(newDokodemoModule("tunnel"))
 		defaultRegistry = registry
 	})
 	return defaultRegistry

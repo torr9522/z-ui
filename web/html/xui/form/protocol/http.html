@@ -1,10 +1,28 @@
 {{define "form/http"}}
 <a-form layout="inline">
+    <a-form-item label="accounts">
+        <a-button type="primary" size="small"
+                  @click="inbound.settings.addAccount(new Inbound.HttpSettings.HttpAccount())">
+            +
+        </a-button>
+    </a-form-item>
+    <a-form-item label="allowTransparent">
+        <a-switch v-model="inbound.settings.allowTransparent"></a-switch>
+    </a-form-item>
+</a-form>
+<a-form v-for="(account, index) in inbound.settings.accounts" layout="inline">
+    <a-divider>
+        account[[ index + 1 ]]
+        <a-icon v-if="inbound.settings.accounts.length > 1" type="delete"
+                @click="() => inbound.settings.delAccount(index)"
+                style="color: rgb(255, 77, 79);cursor: pointer;"/>
+    </a-divider>
     <a-form-item label="用户名">
-        <a-input v-model.trim="inbound.settings.accounts[0].user"></a-input>
+        <a-input v-model.trim="account.user"></a-input>
     </a-form-item>
     <a-form-item label="密码">
-        <a-input v-model.trim="inbound.settings.accounts[0].pass"></a-input>
+        <a-input v-model.trim="account.pass"></a-input>
     </a-form-item>
+    <a-divider v-if="inbound.settings.accounts.length - 1 === index"/>
 </a-form>
 {{end}}

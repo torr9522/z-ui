@@ -30,6 +30,10 @@ func (m *commonModule) FormSchema() FormSchema {
 	}
 }
 
+func normalizeInboundProtocol(inbound *model.Inbound, name string) {
+	inbound.Protocol = model.Protocol(name)
+}
+
 func buildInboundConfig(inbound *model.Inbound, settings string, streamSettings string) *xray.InboundConfig {
 	listen := inbound.Listen
 	if listen != "" {

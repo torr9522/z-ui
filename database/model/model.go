@@ -12,9 +12,11 @@ type Protocol string
 const (
 	VMess       Protocol = "vmess"
 	VLESS       Protocol = "vless"
-	Dokodemo    Protocol = "Dokodemo-door"
+	Dokodemo    Protocol = "dokodemo-door"
+	Socks       Protocol = "socks"
 	Http        Protocol = "http"
 	Mixed       Protocol = "mixed"
+	Tunnel      Protocol = "tunnel"
 	Trojan      Protocol = "trojan"
 	Shadowsocks Protocol = "shadowsocks"
 )

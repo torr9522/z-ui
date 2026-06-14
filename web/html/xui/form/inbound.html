@@ -88,6 +88,11 @@
     {{template "form/dokodemo"}}
 </template>
 
+<!-- tunnel -->
+<template v-if="inbound.protocol === Protocols.TUNNEL">
+    {{template "form/dokodemo"}}
+</template>
+
 <!-- socks -->
 <template v-if="inbound.protocol === Protocols.SOCKS">
     {{template "form/socks"}}
