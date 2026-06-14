@@ -66,6 +66,12 @@
          :message="legacyNetworkWarning()"
          style="margin-bottom: 16px;"></a-alert>
 
+<a-alert v-if="legacyFlowWarning()"
+         type="warning"
+         show-icon
+         :message="legacyFlowWarning()"
+         style="margin-bottom: 16px;"></a-alert>
+
 <!-- protocol settings -->
 <template v-if="isSchemaProtocol(inbound.protocol)">
     {{template "form/protocolSchema"}}

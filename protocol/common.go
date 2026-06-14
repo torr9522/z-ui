@@ -225,9 +225,11 @@ func normalizeClientsFlow(settings map[string]interface{}, field string) {
 			continue
 		case "xtls-rprx-origin", "xtls-rprx-direct":
 			client["flow"] = "xtls-rprx-vision"
+		case "xtls-rprx-splice":
+			delete(client, "flow")
 		default:
 			if strings.HasPrefix(flow, "xtls-rprx-") {
-				client["flow"] = "xtls-rprx-vision"
+				delete(client, "flow")
 			}
 		}
 	}

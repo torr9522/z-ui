@@ -125,6 +125,9 @@
                 }
                 return `当前传输 ${this.inbound.network} 为 Legacy / 兼容模式，仅支持读取与兼容保存。`;
             },
+            legacyFlowWarning() {
+                return this.inbound.legacyFlowWarning();
+            },
             protocolField(field) {
                 const settings = this.inbound.settings;
                 return {

@@ -871,6 +871,20 @@ class Inbound extends XrayCommonClass {
         }
     }
 
+    legacyFlowWarning() {
+        if (this.protocol !== Protocols.VLESS) {
+            return '';
+        }
+        const flow = this.flow;
+        if (flow === 'xtls-rprx-origin' || flow === 'xtls-rprx-direct') {
+            return 'Legacy Flow Migrated Warning: 保存时将迁移为 xtls-rprx-vision。';
+        }
+        if (flow === 'xtls-rprx-splice') {
+            return 'Legacy Flow Unsupported Warning: xtls-rprx-splice 不再支持，保存时将清空 flow。';
+        }
+        return '';
+    }
+
     // VMess
     get alterId() {
         switch (this.protocol) {
