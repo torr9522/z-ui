@@ -84,6 +84,7 @@ type Server struct {
 	server *controller.ServerController
 	xui    *controller.XUIController
 	api    *controller.ProtocolController
+	cert   *controller.CertificateController
 
 	xrayService    service.XrayService
 	settingService service.SettingService
@@ -208,6 +209,7 @@ func (s *Server) initRouter(sessionOptions sessions.Options) (*gin.Engine, error
 	s.server = controller.NewServerController(g)
 	s.xui = controller.NewXUIController(g)
 	s.api = controller.NewProtocolController(g)
+	s.cert = controller.NewCertificateController(g)
 
 	return engine, nil
 }
