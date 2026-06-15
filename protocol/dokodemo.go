@@ -48,6 +48,7 @@ func (m *dokodemoModule) Migrate(inbound *model.Inbound) (*model.Inbound, error)
 	if err != nil {
 		return nil, err
 	}
+	clearTransportState(inbound)
 	return inbound, nil
 }
 
@@ -72,23 +73,13 @@ func (m *dokodemoModule) Validate(inbound *model.Inbound) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(inbound.StreamSettings) != "" && strings.TrimSpace(inbound.StreamSettings) != "{}" {
-		_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
-	}
-	return err
+	clearTransportState(inbound)
+	return nil
 }
 
 func (m *dokodemoModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {
 	if err := m.Validate(inbound); err != nil {
 		return nil, err
 	}
-	streamSettings := inbound.StreamSettings
-	if strings.TrimSpace(streamSettings) != "" && strings.TrimSpace(streamSettings) != "{}" {
-		normalized, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
-		if err != nil {
-			return nil, err
-		}
-		streamSettings = normalized
-	}
-	return buildInboundConfig(inbound, inbound.Settings, streamSettings), nil
+	return buildInboundConfig(inbound, inbound.Settings, inbound.StreamSettings), nil
 }

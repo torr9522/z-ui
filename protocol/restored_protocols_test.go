@@ -32,10 +32,12 @@ func TestDokodemoBuildInboundGeneratesDokodemoProtocol(t *testing.T) {
 func TestSocksBuildInboundGeneratesSocksProtocol(t *testing.T) {
 	module := newSocksModule()
 	inbound := &model.Inbound{
-		Protocol: model.Socks,
-		Port:     23002,
-		Tag:      "socks-test",
-		Settings: `{"auth":"password","accounts":[{"user":"demo","pass":"secret"}],"udp":true,"ip":"127.0.0.1"}`,
+		Protocol:       model.Socks,
+		Port:           23002,
+		Tag:            "socks-test",
+		Settings:       `{"auth":"password","accounts":[{"user":"demo","pass":"secret"}],"udp":true,"ip":"127.0.0.1"}`,
+		StreamSettings: `{"network":"ws"}`,
+		Sniffing:       `{"enabled":true}`,
 	}
 
 	config, err := module.BuildInbound(inbound)
@@ -45,15 +47,23 @@ func TestSocksBuildInboundGeneratesSocksProtocol(t *testing.T) {
 	if config.Protocol != "socks" {
 		t.Fatalf("expected socks protocol, got %q", config.Protocol)
 	}
+	if string(config.StreamSettings) != "{}" {
+		t.Fatalf("expected socks stream settings to be cleared, got %s", string(config.StreamSettings))
+	}
+	if string(config.Sniffing) != "{}" {
+		t.Fatalf("expected socks sniffing to be cleared, got %s", string(config.Sniffing))
+	}
 }
 
 func TestHTTPBuildInboundGeneratesHTTPProtocol(t *testing.T) {
 	module := newHTTPModule()
 	inbound := &model.Inbound{
-		Protocol: model.Http,
-		Port:     23003,
-		Tag:      "http-test",
-		Settings: `{"accounts":[{"user":"demo","pass":"secret"}],"allowTransparent":true}`,
+		Protocol:       model.Http,
+		Port:           23003,
+		Tag:            "http-test",
+		Settings:       `{"auth":true,"accounts":[{"user":"demo","pass":"secret"}],"allowTransparent":true}`,
+		StreamSettings: `{"network":"ws"}`,
+		Sniffing:       `{"enabled":true}`,
 	}
 
 	config, err := module.BuildInbound(inbound)
@@ -63,15 +73,23 @@ func TestHTTPBuildInboundGeneratesHTTPProtocol(t *testing.T) {
 	if config.Protocol != "http" {
 		t.Fatalf("expected http protocol, got %q", config.Protocol)
 	}
+	if string(config.StreamSettings) != "{}" {
+		t.Fatalf("expected http stream settings to be cleared, got %s", string(config.StreamSettings))
+	}
+	if string(config.Sniffing) != "{}" {
+		t.Fatalf("expected http sniffing to be cleared, got %s", string(config.Sniffing))
+	}
 }
 
 func TestTunnelBuildInboundGeneratesTunnelProtocol(t *testing.T) {
 	module := newDokodemoModule("tunnel")
 	inbound := &model.Inbound{
-		Protocol: model.Tunnel,
-		Port:     23004,
-		Tag:      "tunnel-test",
-		Settings: `{"address":"8.8.8.8","port":53,"network":"udp"}`,
+		Protocol:       model.Tunnel,
+		Port:           23004,
+		Tag:            "tunnel-test",
+		Settings:       `{"address":"8.8.8.8","port":53,"network":"udp"}`,
+		StreamSettings: `{"network":"ws"}`,
+		Sniffing:       `{"enabled":true}`,
 	}
 
 	config, err := module.BuildInbound(inbound)
@@ -80,6 +98,12 @@ func TestTunnelBuildInboundGeneratesTunnelProtocol(t *testing.T) {
 	}
 	if config.Protocol != "tunnel" {
 		t.Fatalf("expected tunnel protocol, got %q", config.Protocol)
+	}
+	if string(config.StreamSettings) != "{}" {
+		t.Fatalf("expected tunnel stream settings to be cleared, got %s", string(config.StreamSettings))
+	}
+	if string(config.Sniffing) != "{}" {
+		t.Fatalf("expected tunnel sniffing to be cleared, got %s", string(config.Sniffing))
 	}
 }
 

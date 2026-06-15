@@ -37,6 +37,9 @@ func (m *vmessModule) Validate(inbound *model.Inbound) error {
 	if err := validateClients(decoded, "clients"); err != nil {
 		return err
 	}
+	if err := validateClientUUIDs(decoded, "clients"); err != nil {
+		return err
+	}
 	_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
 	return err
 }

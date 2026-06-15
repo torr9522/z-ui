@@ -28,10 +28,12 @@ func TestVMessBuildInboundNormalizesAlterID(t *testing.T) {
 func TestMixedBuildInboundGeneratesMixedProtocol(t *testing.T) {
 	module := newMixedModule()
 	inbound := &model.Inbound{
-		Protocol: model.Mixed,
-		Port:     24010,
-		Tag:      "mixed-test",
-		Settings: `{}`,
+		Protocol:       model.Mixed,
+		Port:           24010,
+		Tag:            "mixed-test",
+		Settings:       `{}`,
+		StreamSettings: `{"network":"ws"}`,
+		Sniffing:       `{"enabled":true}`,
 	}
 
 	config, err := module.BuildInbound(inbound)
@@ -41,8 +43,11 @@ func TestMixedBuildInboundGeneratesMixedProtocol(t *testing.T) {
 	if config.Protocol != "mixed" {
 		t.Fatalf("expected mixed protocol, got %q", config.Protocol)
 	}
-	if string(config.StreamSettings) != "" {
+	if string(config.StreamSettings) != "{}" {
 		t.Fatalf("mixed should not generate stream settings, got %s", string(config.StreamSettings))
+	}
+	if string(config.Sniffing) != "{}" {
+		t.Fatalf("mixed should clear sniffing, got %s", string(config.Sniffing))
 	}
 }
 
@@ -123,6 +128,40 @@ func TestVLESSBuildInboundGeneratesXHTTPStream(t *testing.T) {
 	}
 	if _, ok := xhttp["headers"].(map[string]interface{}); !ok {
 		t.Fatalf("expected xhttp extra headers to be preserved, got %#v", xhttp)
+	}
+}
+
+func TestVMessValidateRejectsInvalidUUID(t *testing.T) {
+	module := newVMessModule()
+	inbound := &model.Inbound{
+		Protocol: model.VMess,
+		Settings: `{"clients":[{"id":"not-a-uuid"}]}`,
+	}
+	if err := module.Validate(inbound); err == nil {
+		t.Fatal("expected invalid vmess uuid to fail validation")
+	}
+}
+
+func TestVLESSValidateRejectsMissingRealityFields(t *testing.T) {
+	module := newVLESSModule()
+	inbound := &model.Inbound{
+		Protocol:       model.VLESS,
+		Settings:       `{"clients":[{"id":"11111111-1111-1111-1111-111111111111"}]}`,
+		StreamSettings: `{"network":"tcp","security":"reality","realitySettings":{"privateKey":"","dest":""}}`,
+	}
+	if err := module.Validate(inbound); err == nil {
+		t.Fatal("expected missing reality fields to fail validation")
+	}
+}
+
+func TestTrojanValidateRejectsEmptyPassword(t *testing.T) {
+	module := newTrojanModule()
+	inbound := &model.Inbound{
+		Protocol: model.Trojan,
+		Settings: `{"clients":[{"password":""}]}`,
+	}
+	if err := module.Validate(inbound); err == nil {
+		t.Fatal("expected empty trojan password to fail validation")
 	}
 }
 

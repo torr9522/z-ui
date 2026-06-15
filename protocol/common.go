@@ -4,11 +4,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"x-ui/database/model"
 	"x-ui/util/json_util"
 	"x-ui/xray"
+
+	"github.com/xtls/xray-core/common/uuid"
 )
+
+var strictUUIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 type commonModule struct {
 	name            string
@@ -161,6 +166,15 @@ func normalizeStreamSettings(protocolName string, raw string) (string, error) {
 	return encodeObject(stream)
 }
 
+func emptyObject() string {
+	return "{}"
+}
+
+func clearTransportState(inbound *model.Inbound) {
+	inbound.StreamSettings = emptyObject()
+	inbound.Sniffing = emptyObject()
+}
+
 func normalizeVisionFlows(raw string) (string, error) {
 	settings, err := decodeObject(raw)
 	if err != nil {
@@ -261,6 +275,68 @@ func validateClients(settings map[string]interface{}, field string) error {
 	return nil
 }
 
+func validateClientUUIDs(settings map[string]interface{}, field string) error {
+	clients, ok := settings[field].([]interface{})
+	if !ok || len(clients) == 0 {
+		return fmt.Errorf("%s must contain at least one client", field)
+	}
+	for index, item := range clients {
+		client, ok := item.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("%s[%d] must be an object", field, index)
+		}
+		id := strings.TrimSpace(stringValue(client["id"]))
+		if id == "" {
+			return fmt.Errorf("%s[%d].id must not be empty", field, index)
+		}
+		if !strictUUIDPattern.MatchString(id) {
+			return fmt.Errorf("%s[%d].id must be a valid UUID", field, index)
+		}
+		if _, err := uuid.ParseString(id); err != nil {
+			return fmt.Errorf("%s[%d].id must be a valid UUID", field, index)
+		}
+	}
+	return nil
+}
+
+func validateClientPasswords(settings map[string]interface{}, field string) error {
+	clients, ok := settings[field].([]interface{})
+	if !ok || len(clients) == 0 {
+		return fmt.Errorf("%s must contain at least one client", field)
+	}
+	for index, item := range clients {
+		client, ok := item.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("%s[%d] must be an object", field, index)
+		}
+		if strings.TrimSpace(stringValue(client["password"])) == "" {
+			return fmt.Errorf("%s[%d].password must not be empty", field, index)
+		}
+	}
+	return nil
+}
+
+func validateRealityRequired(streamSettings string) error {
+	stream, err := decodeObject(streamSettings)
+	if err != nil {
+		return err
+	}
+	if strings.ToLower(stringValue(stream["security"])) != "reality" {
+		return nil
+	}
+	reality, ok := stream["realitySettings"].(map[string]interface{})
+	if !ok {
+		return errors.New("reality requires realitySettings")
+	}
+	if strings.TrimSpace(stringValue(reality["privateKey"])) == "" {
+		return errors.New("reality privateKey must not be empty")
+	}
+	if strings.TrimSpace(stringValue(reality["dest"])) == "" {
+		return errors.New("reality dest must not be empty")
+	}
+	return nil
+}
+
 func firstString(value interface{}) string {
 	switch typed := value.(type) {
 	case []interface{}:
@@ -292,4 +368,27 @@ func stringValue(value interface{}) string {
 		}
 		return strings.Trim(string(data), "\"")
 	}
+}
+
+func boolValue(value interface{}) bool {
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	case float64:
+		return typed != 0
+	case int:
+		return typed != 0
+	default:
+		return false
+	}
+}
+
+func interfaceSlice(value interface{}) []interface{} {
+	items, ok := value.([]interface{})
+	if !ok {
+		return nil
+	}
+	return items
 }

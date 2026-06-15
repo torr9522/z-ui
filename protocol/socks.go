@@ -19,13 +19,13 @@ func (m *socksModule) FormSchema() FormSchema {
 		Protocol:        m.name,
 		SupportsClients: false,
 		Fields: []FormField{
-			{Name: "auth", Label: "认证", Type: "select", Default: "password", Options: []FormOption{
+			{Name: "auth", Label: "认证", Type: "select", Default: "noauth", Options: []FormOption{
 				{Label: "password", Value: "password"},
 				{Label: "noauth", Value: "noauth"},
 			}},
 			{Name: "accounts.0.user", Label: "用户名", Type: "text"},
 			{Name: "accounts.0.pass", Label: "密码", Type: "password"},
-			{Name: "udp", Label: "启用 UDP", Type: "switch", Default: false},
+			{Name: "udp", Label: "启用 UDP", Type: "switch", Default: true},
 			{Name: "ip", Label: "IP", Type: "text", Default: "127.0.0.1"},
 		},
 	}
@@ -39,18 +39,19 @@ func (m *socksModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
 	}
 	auth := stringValue(settings["auth"])
 	if auth == "" {
-		settings["auth"] = "password"
+		settings["auth"] = "noauth"
 	}
 	if stringValue(settings["ip"]) == "" {
 		settings["ip"] = "127.0.0.1"
 	}
 	if _, exists := settings["udp"]; !exists {
-		settings["udp"] = false
+		settings["udp"] = true
 	}
 	inbound.Settings, err = encodeObject(settings)
 	if err != nil {
 		return nil, err
 	}
+	clearTransportState(inbound)
 	return inbound, nil
 }
 
@@ -76,24 +77,26 @@ func (m *socksModule) Validate(inbound *model.Inbound) error {
 		if !ok || len(accounts) == 0 {
 			return errors.New("socks password auth requires at least one account")
 		}
+		for _, item := range accounts {
+			account, ok := item.(map[string]interface{})
+			if !ok {
+				return errors.New("socks account must be an object")
+			}
+			if stringValue(account["user"]) == "" {
+				return errors.New("socks username must not be empty")
+			}
+			if stringValue(account["pass"]) == "" {
+				return errors.New("socks password must not be empty")
+			}
+		}
 	}
-	if inbound.StreamSettings != "" && inbound.StreamSettings != "{}" {
-		_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
-	}
-	return err
+	clearTransportState(inbound)
+	return nil
 }
 
 func (m *socksModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {
 	if err := m.Validate(inbound); err != nil {
 		return nil, err
 	}
-	streamSettings := inbound.StreamSettings
-	if inbound.StreamSettings != "" && inbound.StreamSettings != "{}" {
-		normalized, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
-		if err != nil {
-			return nil, err
-		}
-		streamSettings = normalized
-	}
-	return buildInboundConfig(inbound, inbound.Settings, streamSettings), nil
+	return buildInboundConfig(inbound, inbound.Settings, inbound.StreamSettings), nil
 }

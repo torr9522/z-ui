@@ -17,6 +17,11 @@
         inbound: new Inbound(),
         dbInbound: new DBInbound(),
         ok() {
+            const error = validateInboundForSubmit(inModal.inbound);
+            if (error) {
+                Vue.prototype.$message.error(error);
+                return;
+            }
             ObjectUtil.execute(inModal.confirm, inModal.inbound, inModal.dbInbound);
         },
         show({ title='', okText='确定', inbound=null, dbInbound=null, confirm=(inbound, dbInbound)=>{} }) {
@@ -69,6 +74,70 @@
         MIXED: Protocols.MIXED,
         TUNNEL: Protocols.TUNNEL,
     };
+
+    function isValidUUID(value) {
+        return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test((value || '').trim());
+    }
+
+    function validateAccounts(accounts, protocolLabel) {
+        if (!Array.isArray(accounts) || accounts.length === 0) {
+            return `${protocolLabel} 至少需要一组账号密码`;
+        }
+        for (const account of accounts) {
+            if (!account || !account.user || !String(account.user).trim()) {
+                return `${protocolLabel} 用户名不能为空`;
+            }
+            if (!account.pass || !String(account.pass).trim()) {
+                return `${protocolLabel} 密码不能为空`;
+            }
+        }
+        return '';
+    }
+
+    function validateInboundForSubmit(inbound) {
+        switch (inbound.protocol) {
+            case Protocols.VMESS:
+            case Protocols.VLESS:
+                if (!isValidUUID(inbound.settings.get('clients.0.id', ''))) {
+                    return `${inbound.protocol} UUID 无效`;
+                }
+                break;
+        }
+
+        if (inbound.protocol === Protocols.VLESS && inbound.stream.security === 'reality') {
+            if (!String(inbound.stream.reality.privateKey || '').trim()) {
+                return 'REALITY privateKey 不能为空';
+            }
+            if (!String(inbound.stream.reality.dest || '').trim()) {
+                return 'REALITY dest 不能为空';
+            }
+        }
+
+        if (inbound.protocol === Protocols.TROJAN) {
+            const password = inbound.settings.get('clients.0.password', '');
+            if (!String(password || '').trim()) {
+                return 'Trojan 密码不能为空';
+            }
+            if (inbound.stream.security === 'reality') {
+                if (!String(inbound.stream.reality.privateKey || '').trim()) {
+                    return 'REALITY privateKey 不能为空';
+                }
+                if (!String(inbound.stream.reality.dest || '').trim()) {
+                    return 'REALITY dest 不能为空';
+                }
+            }
+        }
+
+        if (inbound.protocol === Protocols.SOCKS && inbound.settings.auth === 'password') {
+            return validateAccounts(inbound.settings.accounts, 'SOCKS');
+        }
+
+        if (inbound.protocol === Protocols.HTTP && inbound.settings.auth) {
+            return validateAccounts(inbound.settings.accounts, 'HTTP');
+        }
+
+        return '';
+    }
 
     new Vue({
         delimiters: ['[[', ']]'],

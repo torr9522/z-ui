@@ -36,8 +36,14 @@ func (m *trojanModule) Validate(inbound *model.Inbound) error {
 	if err := validateClients(decoded, "clients"); err != nil {
 		return err
 	}
-	_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
-	return err
+	if err := validateClientPasswords(decoded, "clients"); err != nil {
+		return err
+	}
+	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
+	if err != nil {
+		return err
+	}
+	return validateRealityRequired(streamSettings)
 }
 
 func (m *trojanModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {

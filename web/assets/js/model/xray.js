@@ -120,6 +120,16 @@ function defaultProtocolSettings(protocol) {
             };
         case Protocols.MIXED:
             return {};
+        case Protocols.SOCKS:
+            return {
+                auth: 'noauth',
+                udp: true,
+                ip: '127.0.0.1',
+            };
+        case Protocols.HTTP:
+            return {
+                auth: false,
+            };
         default:
             return {};
     }
@@ -1491,7 +1501,7 @@ Inbound.MtprotoSettings.MtUser = class extends XrayCommonClass {
 };
 
 Inbound.SocksSettings = class extends Inbound.Settings {
-    constructor(protocol, auth='password', accounts=[new Inbound.SocksSettings.SocksAccount()], udp=false, ip='127.0.0.1') {
+    constructor(protocol, auth='noauth', accounts=[new Inbound.SocksSettings.SocksAccount()], udp=true, ip='127.0.0.1') {
         super(protocol);
         this.auth = auth;
         this.accounts = Array.isArray(accounts) && accounts.length > 0 ? accounts : [new Inbound.SocksSettings.SocksAccount()];
@@ -1519,9 +1529,9 @@ Inbound.SocksSettings = class extends Inbound.Settings {
         }
         return new Inbound.SocksSettings(
             Protocols.SOCKS,
-            json.auth || 'password',
+            json.auth || 'noauth',
             accounts,
-            !!json.udp,
+            json.udp === undefined ? true : !!json.udp,
             json.ip || '127.0.0.1',
         );
     }
@@ -1548,8 +1558,9 @@ Inbound.SocksSettings.SocksAccount = class extends XrayCommonClass {
 };
 
 Inbound.HttpSettings = class extends Inbound.Settings {
-    constructor(protocol, accounts=[new Inbound.HttpSettings.HttpAccount()], allowTransparent=false) {
+    constructor(protocol, auth=false, accounts=[new Inbound.HttpSettings.HttpAccount()], allowTransparent=false) {
         super(protocol);
+        this.auth = auth;
         this.accounts = Array.isArray(accounts) && accounts.length > 0 ? accounts : [new Inbound.HttpSettings.HttpAccount()];
         this.allowTransparent = allowTransparent;
     }
@@ -1563,16 +1574,20 @@ Inbound.HttpSettings = class extends Inbound.Settings {
     }
 
     static fromJson(json={}) {
+        const accounts = (json.accounts || []).map(account => Inbound.HttpSettings.HttpAccount.fromJson(account));
+        const auth = json.auth !== undefined ? !!json.auth : accounts.length > 0;
         return new Inbound.HttpSettings(
             Protocols.HTTP,
-            (json.accounts || []).map(account => Inbound.HttpSettings.HttpAccount.fromJson(account)),
+            auth,
+            accounts.length > 0 ? accounts : [new Inbound.HttpSettings.HttpAccount()],
             !!json.allowTransparent,
         );
     }
 
     toJson() {
         return {
-            accounts: Inbound.HttpSettings.toJsonArray(this.accounts),
+            auth: this.auth,
+            accounts: this.auth ? Inbound.HttpSettings.toJsonArray(this.accounts) : undefined,
             allowTransparent: this.allowTransparent,
         };
     }
