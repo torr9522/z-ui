@@ -9,6 +9,7 @@ DB_PATH="${CONFIG_DIR}/x-ui.db"
 CERTS_DIR="${CONFIG_DIR}/certs"
 SERVICE_NAME="x-ui"
 REPO="${XUI_REPO:-FranzKafkaYu/x-ui}"
+DEFAULT_ACME_DOMAIN="cshtps.527270.xyz"
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -155,6 +156,58 @@ openssl_enddate() {
   local cert_file="$1"
   command -v openssl >/dev/null 2>&1 || return 0
   openssl x509 -enddate -noout -in "${cert_file}" 2>/dev/null | sed 's/^notAfter=//'
+}
+
+openssl_expire_epoch() {
+  local cert_file="$1"
+  local enddate
+  enddate="$(openssl_enddate "${cert_file}")"
+  [[ -n "${enddate}" ]] || {
+    printf '0\n'
+    return
+  }
+  date -d "${enddate}" +%s 2>/dev/null || printf '0\n'
+}
+
+domain_ipv4s() {
+  local domain="$1"
+  python3 - "${domain}" <<'PY'
+import socket, sys
+domain = sys.argv[1]
+values = set()
+try:
+    for item in socket.getaddrinfo(domain, None, socket.AF_INET, socket.SOCK_STREAM):
+        values.add(item[4][0])
+except Exception:
+    pass
+for value in sorted(values):
+    print(value)
+PY
+}
+
+acme_bin() {
+  if command -v acme.sh >/dev/null 2>&1; then
+    command -v acme.sh
+    return
+  fi
+  if [[ -x "${HOME}/.acme.sh/acme.sh" ]]; then
+    printf '%s\n' "${HOME}/.acme.sh/acme.sh"
+  fi
+}
+
+ensure_acme_installed() {
+  local bin
+  bin="$(acme_bin || true)"
+  if [[ -n "${bin}" ]]; then
+    printf '%s\n' "${bin}"
+    return
+  fi
+  command -v curl >/dev/null 2>&1 || fail "curl is required to install acme.sh"
+  printf 'acme.sh not found, installing...\n' >&2
+  curl -fsSL https://get.acme.sh | sh -s email="admin@${DEFAULT_ACME_DOMAIN}" >/dev/null
+  bin="$(acme_bin || true)"
+  [[ -n "${bin}" ]] || fail "acme.sh installation failed"
+  printf '%s\n' "${bin}"
 }
 
 choose_certificate() {
@@ -405,6 +458,62 @@ cmd_cert_set_panel_https() {
   fi
 }
 
+cmd_cert_issue_acme() {
+  ensure_certs_dir
+  local domain="${DEFAULT_ACME_DOMAIN}"
+  read -r -p "Domain [${DEFAULT_ACME_DOMAIN}]: " input_domain
+  domain="${input_domain:-${DEFAULT_ACME_DOMAIN}}"
+  [[ -n "${domain}" ]] || fail "domain is required"
+
+  local public_ip dns_ips match
+  public_ip="$(server_ip)"
+  dns_ips="$(domain_ipv4s "${domain}" | paste -sd, -)"
+  [[ -n "${dns_ips}" ]] || fail "domain ${domain} has no A record"
+  match=0
+  IFS=',' read -ra dns_array <<< "${dns_ips}"
+  for ip in "${dns_array[@]}"; do
+    if [[ "${ip}" == "${public_ip}" ]]; then
+      match=1
+      break
+    fi
+  done
+  [[ "${match}" -eq 1 ]] || fail "domain ${domain} resolves to ${dns_ips}, current server public IP is ${public_ip}"
+  printf 'Domain resolves to this server: %s -> %s\n' "${domain}" "${public_ip}"
+
+  if port_in_use 80; then
+    fail "port 80 is occupied; standalone HTTP-01 cannot continue"
+  fi
+  printf 'Port 80 is available\n'
+
+  local acme
+  acme="$(ensure_acme_installed)"
+  printf 'Using acme.sh: %s\n' "${acme}"
+
+  "${acme}" --set-default-ca --server letsencrypt >/dev/null
+  "${acme}" --issue --standalone -d "${domain}"
+
+  local target_dir backup_dir cert_file key_file
+  target_dir="$(cert_dir "${domain}")"
+  if [[ -d "${target_dir}" ]]; then
+    backup_dir="$(backup_path "${CERTS_DIR}/${domain}.bak")"
+    mv "${target_dir}" "${backup_dir}"
+  fi
+  mkdir -p "${target_dir}"
+  chmod 700 "${target_dir}"
+
+  cert_file="${target_dir}/fullchain.pem"
+  key_file="${target_dir}/privkey.pem"
+  "${acme}" --install-cert -d "${domain}" \
+    --fullchain-file "${cert_file}" \
+    --key-file "${key_file}" \
+    --reloadcmd "systemctl reload ${SERVICE_NAME} >/dev/null 2>&1 || true"
+
+  chmod 0644 "${cert_file}"
+  chmod 0600 "${key_file}"
+  write_cert_meta "${target_dir}/meta.json" "${domain}" "${domain}" "acme.sh" "${cert_file}" "${key_file}" "$(date +%s)" "$(openssl_expire_epoch "${cert_file}")" "true"
+  printf 'Certificate issued and installed: %s\n' "${target_dir}"
+}
+
 cmd_cert_not_implemented() {
   printf '即将支持 / Not implemented yet\n'
 }
@@ -429,7 +538,8 @@ EOF
       2) cmd_cert_import ;;
       3) cmd_cert_delete ;;
       4) cmd_cert_set_panel_https ;;
-      5|6) cmd_cert_not_implemented ;;
+      5) cmd_cert_issue_acme ;;
+      6) cmd_cert_not_implemented ;;
       0) return 0 ;;
       *) printf 'Invalid selection\n' ;;
     esac
