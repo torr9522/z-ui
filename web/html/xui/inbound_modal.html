@@ -12,6 +12,7 @@
         confirmLoading: false,
         okText: '确定',
         confirm: null,
+        certificates: [],
         protocolSchemas: {},
         protocolSchema: null,
         inbound: new Inbound(),
@@ -39,6 +40,7 @@
             }
             this.confirm = confirm;
             this.loadProtocolSchema(this.inbound.protocol);
+            this.loadCertificates();
             this.visible = true;
         },
         async loadProtocolSchema(protocol) {
@@ -53,6 +55,14 @@
             }
             this.protocolSchemas[protocol] = msg.obj;
             this.protocolSchema = msg.obj;
+        },
+        async loadCertificates() {
+            const msg = await HttpUtil.get('/api/certificates');
+            if (!msg.success || !Array.isArray(msg.obj)) {
+                this.certificates = [];
+                return;
+            }
+            this.certificates = msg.obj;
         },
         close() {
             inModal.visible = false;
@@ -235,6 +245,21 @@
                     value += alphabet[bytes[i] % alphabet.length];
                 }
                 return value;
+            },
+            availableCertificates() {
+                return Array.isArray(this.inModal.certificates) ? this.inModal.certificates : [];
+            },
+            applyCertificate(certFile) {
+                const selected = this.availableCertificates().find(item => item.certFile === certFile);
+                if (!selected) {
+                    return;
+                }
+                this.inbound.stream.tls.certs[0].useFile = true;
+                this.inbound.stream.tls.certs[0].certFile = selected.certFile;
+                this.inbound.stream.tls.certs[0].keyFile = selected.keyFile;
+                if (!this.inbound.stream.tls.server && selected.domain) {
+                    this.inbound.stream.tls.server = selected.domain;
+                }
             },
             protocolField(field) {
                 const settings = this.inbound.settings;

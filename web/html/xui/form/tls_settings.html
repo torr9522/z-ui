@@ -15,6 +15,16 @@
     <a-form-item label="域名">
         <a-input v-model.trim="inbound.stream.tls.server"></a-input>
     </a-form-item>
+    <a-form-item v-if="availableCertificates().length > 0 && inbound.stream.tls.certs[0].useFile" label="本地证书">
+        <a-select :value="inbound.stream.tls.certs[0].certFile" style="width: 280px;" @change="applyCertificate">
+            <a-select-option v-for="certificate in availableCertificates()" :key="certificate.certFile" :value="certificate.certFile">
+                [[ certificate.name ]] ([[ certificate.domain ]])
+            </a-select-option>
+        </a-select>
+    </a-form-item>
+    <a-form-item v-else-if="inbound.stream.tls.certs[0].useFile" label="本地证书">
+        <span>未检测到本地证书，可通过 x-ui 命令导入证书</span>
+    </a-form-item>
     <a-form-item label="证书">
         <a-radio-group v-model="inbound.stream.tls.certs[0].useFile"
                        button-style="solid">
