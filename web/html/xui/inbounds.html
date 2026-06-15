@@ -77,8 +77,9 @@
                                     </a-menu>
                                 </a-dropdown>
                             </template>
-                            <template slot="protocol" slot-scope="text, dbInbound">
+                            <template slot="protocol" slot-scope="text, dbInbound, index">
                                 <a-tag color="blue">[[ dbInbound.protocol ]]</a-tag>
+                                <a-tag v-if="dbInbound.protocol === Protocols.HTTP && inbounds[index].stream.isTls" color="green">TLS</a-tag>
                             </template>
                             <template slot="traffic" slot-scope="text, dbInbound">
                                 <a-tag color="blue">[[ sizeFormat(dbInbound.up) ]] / [[ sizeFormat(dbInbound.down) ]]</a-tag>
@@ -92,7 +93,7 @@
                                 <a-button type="link" @click="showInfo(dbInbound)">查看</a-button>
                             </template>
                             <template slot="stream" slot-scope="text, dbInbound, index">
-                                <template v-if="dbInbound.isVMess || dbInbound.isVLess || dbInbound.isTrojan || dbInbound.isSS">
+                                <template v-if="dbInbound.isVMess || dbInbound.isVLess || dbInbound.isTrojan || dbInbound.isSS || dbInbound.protocol === Protocols.HTTP">
                                     <a-tag color="green">[[ inbounds[index].stream.network ]]</a-tag>
                                     <a-tag v-if="inbounds[index].stream.isTls" color="blue">tls</a-tag>
                                     <a-tag v-if="inbounds[index].stream.isReality" color="blue">reality</a-tag>

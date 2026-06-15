@@ -146,6 +146,13 @@
             return validateAccounts(inbound.settings.accounts, 'HTTP');
         }
 
+        if (inbound.protocol === Protocols.HTTP && inbound.stream.security === 'tls') {
+            const cert = inbound.stream.tls.certs[0] || {};
+            if (!String(cert.certFile || '').trim() || !String(cert.keyFile || '').trim()) {
+                return '未检测到 TLS 证书。请先执行：x-ui cert 导入或申请证书。';
+            }
+        }
+
         return '';
     }
 

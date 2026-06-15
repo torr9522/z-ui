@@ -1059,6 +1059,7 @@ class Inbound extends XrayCommonClass {
             case Protocols.VLESS:
             case Protocols.TROJAN:
             case Protocols.SHADOWSOCKS:
+            case Protocols.HTTP:
                 break;
             default:
                 return false;
@@ -1348,7 +1349,7 @@ class Inbound extends XrayCommonClass {
 
     toJson() {
         let streamSettings;
-        if (this.canEnableStream()) {
+        if (this.canEnableStream() || this.protocol === Protocols.HTTP) {
             streamSettings = this.stream.toJson();
         }
         return {

@@ -2,6 +2,8 @@ package protocol
 
 import (
 	"errors"
+	"os"
+	"strings"
 	"x-ui/database/model"
 	"x-ui/xray"
 )
@@ -28,6 +30,7 @@ func (m *httpModule) FormSchema() FormSchema {
 
 func (m *httpModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
 	normalizeInboundProtocol(inbound, m.name)
+	rawStreamSettings := inbound.StreamSettings
 	settings, err := decodeObject(inbound.Settings)
 	if err != nil {
 		return nil, err
@@ -46,6 +49,13 @@ func (m *httpModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
 		return nil, err
 	}
 	clearTransportState(inbound)
+	if strings.TrimSpace(rawStreamSettings) != "" {
+		stream, err := normalizeHTTPStreamSettings(rawStreamSettings)
+		if err != nil {
+			return nil, err
+		}
+		inbound.StreamSettings = stream
+	}
 	return inbound, nil
 }
 
@@ -87,7 +97,15 @@ func (m *httpModule) Validate(inbound *model.Inbound) error {
 	if err != nil {
 		return err
 	}
-	clearTransportState(inbound)
+	if strings.TrimSpace(inbound.StreamSettings) == "" {
+		inbound.StreamSettings = emptyObject()
+	} else {
+		stream, err := normalizeHTTPStreamSettings(inbound.StreamSettings)
+		if err != nil {
+			return err
+		}
+		inbound.StreamSettings = stream
+	}
 	return nil
 }
 
@@ -96,4 +114,61 @@ func (m *httpModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, 
 		return nil, err
 	}
 	return buildInboundConfig(inbound, inbound.Settings, inbound.StreamSettings), nil
+}
+
+func normalizeHTTPStreamSettings(raw string) (string, error) {
+	stream, err := decodeObject(raw)
+	if err != nil {
+		return "", err
+	}
+	securityValue, exists := stream["security"]
+	security := strings.ToLower(strings.TrimSpace(stringValue(securityValue)))
+	if !exists || security == "" || security == "null" {
+		security = "none"
+	}
+	switch security {
+	case "none":
+		return emptyObject(), nil
+	case "tls":
+		tlsSettings, ok := stream["tlsSettings"].(map[string]interface{})
+		if !ok {
+			return "", errors.New("http tls requires tlsSettings")
+		}
+		certificates, ok := tlsSettings["certificates"].([]interface{})
+		if !ok || len(certificates) == 0 {
+			return "", errors.New("http tls requires certificate")
+		}
+		certificate, ok := certificates[0].(map[string]interface{})
+		if !ok {
+			return "", errors.New("http tls certificate must be an object")
+		}
+		certFile := strings.TrimSpace(stringValue(certificate["certificateFile"]))
+		keyFile := strings.TrimSpace(stringValue(certificate["keyFile"]))
+		if certFile == "" {
+			return "", errors.New("http tls certificateFile must not be empty")
+		}
+		if keyFile == "" {
+			return "", errors.New("http tls keyFile must not be empty")
+		}
+		if _, err := os.Stat(certFile); err != nil {
+			return "", errors.New("http tls certificateFile does not exist")
+		}
+		if _, err := os.Stat(keyFile); err != nil {
+			return "", errors.New("http tls keyFile does not exist")
+		}
+		delete(stream, "network")
+		delete(stream, "realitySettings")
+		delete(stream, "tcpSettings")
+		delete(stream, "kcpSettings")
+		delete(stream, "wsSettings")
+		delete(stream, "httpSettings")
+		delete(stream, "xhttpSettings")
+		delete(stream, "quicSettings")
+		delete(stream, "grpcSettings")
+		stream["security"] = "tls"
+		stream["tlsSettings"] = tlsSettings
+		return encodeObject(stream)
+	default:
+		return "", errors.New("http security must be none or tls")
+	}
 }

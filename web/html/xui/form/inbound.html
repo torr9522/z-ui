@@ -78,6 +78,13 @@
          :message="legacyVMessWarning()"
          style="margin-bottom: 16px;"></a-alert>
 
+<a-alert v-if="inbound.protocol === Protocols.HTTP && inbound.stream.security === 'tls'"
+         type="info"
+         show-icon
+         message="HTTP + TLS"
+         description="HTTP (HTTPS Mode)"
+         style="margin-bottom: 16px;"></a-alert>
+
 <!-- protocol settings -->
 <template v-if="isSchemaProtocol(inbound.protocol)">
     {{template "form/protocolSchema"}}

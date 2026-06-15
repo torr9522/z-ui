@@ -85,6 +85,60 @@ func TestHTTPBuildInboundGeneratesHTTPProtocol(t *testing.T) {
 	}
 }
 
+func TestHTTPBuildInboundWithTLSPreservesTLSSettings(t *testing.T) {
+	certDir := t.TempDir()
+	certFile := filepath.Join(certDir, "fullchain.pem")
+	keyFile := filepath.Join(certDir, "privkey.pem")
+	if err := os.WriteFile(certFile, []byte("cert"), 0644); err != nil {
+		t.Fatalf("write cert: %v", err)
+	}
+	if err := os.WriteFile(keyFile, []byte("key"), 0600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+
+	module := newHTTPModule()
+	inbound := &model.Inbound{
+		Protocol:       model.Http,
+		Port:           23008,
+		Tag:            "http-tls-test",
+		Settings:       `{"auth":false}`,
+		StreamSettings: `{"security":"tls","tlsSettings":{"serverName":"example.com","certificates":[{"certificateFile":"` + certFile + `","keyFile":"` + keyFile + `"}]}}`,
+	}
+
+	config, err := module.BuildInbound(inbound)
+	if err != nil {
+		t.Fatalf("build inbound: %v", err)
+	}
+	if config.Protocol != "http" {
+		t.Fatalf("expected http protocol, got %q", config.Protocol)
+	}
+	stream := decodeMap(t, string(config.StreamSettings))
+	if stream["security"] != "tls" {
+		t.Fatalf("expected http tls security, got %#v", stream)
+	}
+	if _, exists := stream["tlsSettings"]; !exists {
+		t.Fatalf("expected tlsSettings in http tls stream: %#v", stream)
+	}
+	if _, exists := stream["tcpSettings"]; exists {
+		t.Fatalf("expected http tls stream to omit tcpSettings: %#v", stream)
+	}
+}
+
+func TestHTTPBuildInboundWithTLSRequiresCertificateFiles(t *testing.T) {
+	module := newHTTPModule()
+	inbound := &model.Inbound{
+		Protocol:       model.Http,
+		Port:           23009,
+		Tag:            "http-tls-missing-cert-test",
+		Settings:       `{"auth":false}`,
+		StreamSettings: `{"security":"tls","tlsSettings":{"certificates":[{"certificateFile":"","keyFile":""}]}}`,
+	}
+
+	if _, err := module.BuildInbound(inbound); err == nil {
+		t.Fatal("expected http tls without certificate files to fail")
+	}
+}
+
 func TestTunnelBuildInboundGeneratesTunnelProtocol(t *testing.T) {
 	module := newDokodemoModule("tunnel")
 	inbound := &model.Inbound{
