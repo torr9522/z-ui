@@ -38,6 +38,9 @@ func (m *httpModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
 	if _, exists := settings["auth"]; !exists {
 		settings["auth"] = len(interfaceSlice(settings["accounts"])) > 0
 	}
+	if !boolValue(settings["auth"]) {
+		delete(settings, "accounts")
+	}
 	inbound.Settings, err = encodeObject(settings)
 	if err != nil {
 		return nil, err
@@ -57,7 +60,8 @@ func (m *httpModule) Validate(inbound *model.Inbound) error {
 	if err != nil {
 		return err
 	}
-	if boolValue(settings["auth"]) {
+	authEnabled := boolValue(settings["auth"])
+	if authEnabled {
 		accounts, ok := settings["accounts"].([]interface{})
 		if !ok || len(accounts) == 0 {
 			return errors.New("http password auth requires at least one account")
@@ -74,6 +78,14 @@ func (m *httpModule) Validate(inbound *model.Inbound) error {
 				return errors.New("http password must not be empty")
 			}
 		}
+	}
+	delete(settings, "auth")
+	if !authEnabled {
+		delete(settings, "accounts")
+	}
+	inbound.Settings, err = encodeObject(settings)
+	if err != nil {
+		return err
 	}
 	clearTransportState(inbound)
 	return nil

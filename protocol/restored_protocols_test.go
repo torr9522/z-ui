@@ -73,6 +73,10 @@ func TestHTTPBuildInboundGeneratesHTTPProtocol(t *testing.T) {
 	if config.Protocol != "http" {
 		t.Fatalf("expected http protocol, got %q", config.Protocol)
 	}
+	settings := decodeMap(t, string(config.Settings))
+	if _, exists := settings["auth"]; exists {
+		t.Fatalf("http auth must not leak into final settings: %#v", settings)
+	}
 	if string(config.StreamSettings) != "{}" {
 		t.Fatalf("expected http stream settings to be cleared, got %s", string(config.StreamSettings))
 	}
@@ -104,6 +108,47 @@ func TestTunnelBuildInboundGeneratesTunnelProtocol(t *testing.T) {
 	}
 	if string(config.Sniffing) != "{}" {
 		t.Fatalf("expected tunnel sniffing to be cleared, got %s", string(config.Sniffing))
+	}
+}
+
+func TestHTTPBuildInboundWithoutAuthOmitsAccounts(t *testing.T) {
+	module := newHTTPModule()
+	inbound := &model.Inbound{
+		Protocol: model.Http,
+		Port:     23006,
+		Tag:      "http-noauth-test",
+		Settings: `{"auth":false,"accounts":[{"user":"demo","pass":"secret"}],"allowTransparent":true}`,
+	}
+
+	config, err := module.BuildInbound(inbound)
+	if err != nil {
+		t.Fatalf("build inbound: %v", err)
+	}
+	settings := decodeMap(t, string(config.Settings))
+	if _, exists := settings["accounts"]; exists {
+		t.Fatalf("http accounts must be omitted when auth is disabled: %#v", settings)
+	}
+	if _, exists := settings["auth"]; exists {
+		t.Fatalf("http auth must not leak into final settings: %#v", settings)
+	}
+}
+
+func TestSocksBuildInboundWithoutAuthOmitsAccounts(t *testing.T) {
+	module := newSocksModule()
+	inbound := &model.Inbound{
+		Protocol: model.Socks,
+		Port:     23007,
+		Tag:      "socks-noauth-test",
+		Settings: `{"auth":"noauth","accounts":[{"user":"demo","pass":"secret"}],"udp":true,"ip":"127.0.0.1"}`,
+	}
+
+	config, err := module.BuildInbound(inbound)
+	if err != nil {
+		t.Fatalf("build inbound: %v", err)
+	}
+	settings := decodeMap(t, string(config.Settings))
+	if _, exists := settings["accounts"]; exists {
+		t.Fatalf("socks accounts must be omitted when auth is disabled: %#v", settings)
 	}
 }
 

@@ -1537,12 +1537,16 @@ Inbound.SocksSettings = class extends Inbound.Settings {
     }
 
     toJson() {
-        return {
+        const payload = {
             auth: this.auth,
             accounts: this.auth === 'password' ? this.accounts.map(account => account.toJson()) : undefined,
             udp: this.udp,
             ip: this.ip,
         };
+        if (this.auth !== 'password') {
+            delete payload.accounts;
+        }
+        return payload;
     }
 };
 Inbound.SocksSettings.SocksAccount = class extends XrayCommonClass {
@@ -1585,11 +1589,15 @@ Inbound.HttpSettings = class extends Inbound.Settings {
     }
 
     toJson() {
-        return {
+        const payload = {
             auth: this.auth,
             accounts: this.auth ? Inbound.HttpSettings.toJsonArray(this.accounts) : undefined,
             allowTransparent: this.allowTransparent,
         };
+        if (!this.auth) {
+            delete payload.accounts;
+        }
+        return payload;
     }
 };
 

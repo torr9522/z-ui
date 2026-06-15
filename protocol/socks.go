@@ -47,6 +47,9 @@ func (m *socksModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
 	if _, exists := settings["udp"]; !exists {
 		settings["udp"] = true
 	}
+	if stringValue(settings["auth"]) != "password" {
+		delete(settings, "accounts")
+	}
 	inbound.Settings, err = encodeObject(settings)
 	if err != nil {
 		return nil, err
@@ -88,6 +91,13 @@ func (m *socksModule) Validate(inbound *model.Inbound) error {
 			if stringValue(account["pass"]) == "" {
 				return errors.New("socks password must not be empty")
 			}
+		}
+	}
+	if auth != "password" {
+		delete(settings, "accounts")
+		inbound.Settings, err = encodeObject(settings)
+		if err != nil {
+			return err
 		}
 	}
 	clearTransportState(inbound)

@@ -12,6 +12,7 @@ DB_PATH="${ETC_DIR}/x-ui.db"
 BASE_URL="http://127.0.0.1:54321"
 COOKIE=/tmp/x-ui-rc-upgrade.cookie
 BACKUP_DIR=""
+HAD_ETC_DIR=0
 
 cleanup() {
   if [[ -n "${PANEL_PID:-}" ]]; then
@@ -23,17 +24,23 @@ cleanup() {
     if [[ -d "$BACKUP_DIR" ]]; then
       mv "$BACKUP_DIR" "$ETC_DIR"
     fi
+  elif [[ "$HAD_ETC_DIR" -eq 0 ]]; then
+    rm -rf "$ETC_DIR"
   fi
 }
 trap cleanup EXIT
 
 if [[ -d "$ETC_DIR" ]]; then
+  HAD_ETC_DIR=1
   BACKUP_DIR="$(mktemp -d /tmp/x-ui-rc-upgrade-backup.XXXXXX)"
   rm -rf "$BACKUP_DIR"
   mv "$ETC_DIR" "$BACKUP_DIR"
 fi
 mkdir -p "$ETC_DIR"
 chmod 700 "$ETC_DIR"
+rm -f "$DB_PATH"
+touch "$DB_PATH"
+chmod 600 "$DB_PATH"
 rm -f "$DB_PATH"
 
 sqlite3 "$DB_PATH" <<'SQL'
