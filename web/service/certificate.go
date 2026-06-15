@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 	"x-ui/web/entity"
 )
 
@@ -18,7 +19,9 @@ type certificateMeta struct {
 	KeyFile   string `json:"keyFile"`
 	CreatedAt int64  `json:"createdAt"`
 	ExpireAt  int64  `json:"expireAt"`
+	LastRenew int64  `json:"lastRenewAt"`
 	AutoRenew bool   `json:"autoRenew"`
+	Type      string `json:"type"`
 }
 
 type CertificateService struct{}
@@ -56,6 +59,7 @@ func (s *CertificateService) List() ([]*entity.Certificate, error) {
 			CertFile: certPath,
 			KeyFile:  keyPath,
 			ExpireAt: 0,
+			Type:     "imported",
 		}
 		if data, err := os.ReadFile(metaPath); err == nil {
 			_ = json.Unmarshal(data, meta)
@@ -75,14 +79,27 @@ func (s *CertificateService) List() ([]*entity.Certificate, error) {
 		if meta.Issuer == "" {
 			meta.Issuer = "manual"
 		}
+		if meta.Type == "" {
+			meta.Type = "imported"
+		}
+		daysRemaining := int64(0)
+		if meta.ExpireAt > 0 {
+			daysRemaining = (meta.ExpireAt - time.Now().Unix()) / 86400
+			if daysRemaining < 0 {
+				daysRemaining = 0
+			}
+		}
 
 		certificates = append(certificates, &entity.Certificate{
-			Name:     meta.Name,
-			Domain:   meta.Domain,
-			CertFile: meta.CertFile,
-			KeyFile:  meta.KeyFile,
-			ExpireAt: meta.ExpireAt,
-			Issuer:   meta.Issuer,
+			Name:          meta.Name,
+			Domain:        meta.Domain,
+			CertFile:      meta.CertFile,
+			KeyFile:       meta.KeyFile,
+			ExpireAt:      meta.ExpireAt,
+			Issuer:        meta.Issuer,
+			Type:          meta.Type,
+			AutoRenew:     meta.AutoRenew,
+			DaysRemaining: daysRemaining,
 		})
 	}
 

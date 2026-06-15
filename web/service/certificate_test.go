@@ -25,9 +25,10 @@ func TestCertificateServiceList(t *testing.T) {
   "issuer": "manual",
   "certFile": "/etc/x-ui/certs/service-test/fullchain.pem",
   "keyFile": "/etc/x-ui/certs/service-test/privkey.pem",
+  "type": "domain",
   "createdAt": 0,
-  "expireAt": 123,
-  "autoRenew": false
+  "expireAt": 4102444800,
+  "autoRenew": true
 }`
 	if err := os.WriteFile(filepath.Join(root, "meta.json"), []byte(meta), 0600); err != nil {
 		t.Fatalf("write meta: %v", err)
@@ -57,8 +58,17 @@ func TestCertificateServiceList(t *testing.T) {
 		if item.KeyFile != "/etc/x-ui/certs/service-test/privkey.pem" {
 			t.Fatalf("unexpected key file: %s", item.KeyFile)
 		}
-		if item.ExpireAt != 123 {
+		if item.ExpireAt != 4102444800 {
 			t.Fatalf("unexpected expireAt: %d", item.ExpireAt)
+		}
+		if item.Type != "domain" {
+			t.Fatalf("unexpected type: %s", item.Type)
+		}
+		if !item.AutoRenew {
+			t.Fatal("expected autoRenew to be true")
+		}
+		if item.DaysRemaining <= 0 {
+			t.Fatalf("expected positive days remaining, got %d", item.DaysRemaining)
 		}
 	}
 	if !found {
