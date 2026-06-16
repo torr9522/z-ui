@@ -1,53 +1,54 @@
-# X-UI
-简体中文|[ENGLISH](./README_EN.md)  
+# Modern x-ui
 
-> 声明：该项目仅供个人学习、交流，请遵守当地法律法规,勿用于非法用途;请勿用于生产环境  
-> 声明：该项目已闭源，介意者请勿使用；如您需要开源代码，请附上您的Github Profile邮箱联系  
+Modern x-ui 是基于 x-ui 的现代化维护分支，目标是在保持原项目轻量结构的前提下升级到 Xray-core 26.x，并补齐安全、迁移、协议模块化、Runtime API、证书管理和安装脚本能力。
 
-支持单端口多用户、多协议的 xray 面板，究极缝合怪    
-通过免费的Telegram bot方便快捷地进行监控、管理你的代理服务  
-&#x26A1;`xtls-rprx-vision`与`reality`快速入手请看[这里](https://github.com/FranzKafkaYu/x-ui/wiki/%E8%8A%82%E7%82%B9%E9%85%8D%E7%BD%AE)  
-欢迎大家使用并反馈意见或提交Pr,帮助项目更好的改善  
-如果您觉得本项目对您有所帮助,不妨给个star:star2:支持我  
-或者你恰巧有购买服务器的需求,可以通过文末的赞助部分支持我~ 
+本仓库适合作为长期维护、二次开发和审计基线。项目仍然保持 Go + SQLite + 现有 Vue/Ant Design 模板的轻量架构，避免引入企业级复杂度。
 
-# 文档目录  
-- [功能介绍](#功能介绍)  
-- [一键安装](#一键安装)  
-- [效果预览](#效果预览)  
-- [快捷方式](#快捷方式)  
-- [变更记录](#变更记录)
+## 功能列表
 
-# 功能介绍
+- Go 1.26 构建基线
+- Xray-core 26.6.1 基线
+- SQLite 持久化
+- `schema_migrations` 数据库迁移
+- `password_hash` 登录安全迁移
+- `inbound_clients` 客户端拆分表
+- ProtocolModule 接管协议配置生成
+- Runtime API 同步与完整重启 fallback
+- CSRF 与安全 Cookie
+- 随机首次启动账号、密码、端口
+- 安全安装脚本和 `x-ui` 管理命令
+- 证书管理、ACME 域名证书、自动续期
+- TLS 证书选择器
+- HTTP + TLS 模式
+- REALITY / Vision / XHTTP / mixed 支持
 
-- 系统状态监控
-- 支持单端口多用户、多协议，网页可视化操作
-- 支持的协议：vmess、vless、trojan、shadowsocks、shadowsocks 2022、dokodemo-door、socks、http
-- 支持配置更多传输配置：http、tcp、ws、grpc、kcp、quic
-- 流量统计，限制流量，限制到期时间，一键重置与设备监控
-- 可自定义 xray 配置模板
-- 支持 https 访问面板（自备域名 + ssl 证书）
-- 支持一键SSL证书申请且自动续签
-- Telegram bot通知、控制功能
-- 更多高级配置项，详见面板 
+## 支持协议
 
-:bulb:具体**使用、配置细节以及问题排查**请点击这里:point_right:[WIKI](https://github.com/FranzKafkaYu/x-ui/wiki):point_left:  
- Specific **Usages、Configurations and Debug** please refer to [WIKI](https://github.com/FranzKafkaYu/x-ui/wiki)    
-# 一键安装
-在安装前请确保你的系统支持 `bash`、`curl`、`systemd`，且系统网络正常。安装脚本支持 Debian、Ubuntu、CentOS、Rocky、Alma 的 amd64/arm64 环境。  
+- VMess
+- VLESS
+- Trojan
+- Shadowsocks
+- Dokodemo-door
+- SOCKS
+- HTTP
+- mixed
+- tunnel
 
-安装会自动生成随机用户名、随机密码和 10000-59999 范围内的随机面板端口。安装完成后登录信息只会输出到当前终端。
+不实现 TUIC，除非未来 Xray-core 源码明确提供原生 inbound 支持。
 
-```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh)
-```    
-如需安装指定版本，可以在上述命令后追加版本号：    
-```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh) beta-v0.1.0
+## 安装方式
+
+安装脚本支持 Debian、Ubuntu、CentOS、Rocky、Alma 的 amd64/arm64 环境。
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/<your-repo>/x-ui/master/install.sh)
 ```
 
-安装完成后可使用 `x-ui` 管理命令：
-```
+安装流程会生成随机用户名、随机强密码和 10000-59999 范围内的随机面板端口。登录信息只输出到当前终端。
+
+## 管理命令
+
+```bash
 x-ui start
 x-ui stop
 x-ui restart
@@ -58,167 +59,170 @@ x-ui log
 x-ui reset-user
 x-ui reset-port
 x-ui info
-x-ui cert
-x-ui cert status
-x-ui cert renew
-x-ui cert autorenew
 x-ui update
 x-ui uninstall
 ```
 
-# 效果预览  
-`面板使用`:  
-<details>
-<summary><b>点击查看效果预览</b></summary>  
-  
-![image](https://user-images.githubusercontent.com/38254177/180629631-f76a05c8-ecf0-4685-bbc7-a7058747d213.png)  
-![image](https://user-images.githubusercontent.com/38254177/180629662-b7a325fc-1ebb-47c9-992c-1e7c758a326b.png)
+证书命令：
 
-
- </details>  
- 
-`Bot使用`:  
-<details>
-<summary><b>点击查看效果预览</b></summary>  
-  
-![image](https://user-images.githubusercontent.com/38254177/178551055-893936b7-b75f-4ee8-a773-eee7c6f43f51.png)  
- 
-</details>  
-
-`流量提醒`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/180039760-dc987a30-e21c-49a3-8e03-19666566a822.png)
-
-</details>  
-
-`SSH提醒`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/180040129-2ec1a7c0-abd3-41dc-aab0-8cd22415c943.png)
-
-</details>  
-
-`限额提醒`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/180040521-af6e9ef8-d7e5-44e8-834e-25b3b8e3e1b5.png)
-
-</details>  
-
-`到期提醒`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/180041690-90ca4b1f-3a2d-470b-bc0c-eca9261a739a.png)
-
-</details>  
-
-`登录提醒`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/180040913-b8bf2fe1-6fc1-43ab-a683-ae23db1866b2.png)  
-![image](https://user-images.githubusercontent.com/38254177/180041179-a5f4cd52-a1ba-4aa9-abb2-b94e36722385.png)
-
-</details>  
-
-`用户速览`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/230761101-20431dd7-5bce-489e-9139-0ceb9ab9a2dc.png)
-
-</details>  
-
-`用户查询`:  
-<details>
-<summary><b>点击查看效果预览</b></summary> 
-  
-![image](https://user-images.githubusercontent.com/38254177/230761252-c283c02d-82a4-46ce-a180-dfab4048180d.png)
-
-</details>  
-
-
-
-# 快捷方式
-安装成功后，可通过 `x-ui <command>` 使用管理命令：
-```
-x-ui start
-x-ui stop
-x-ui restart
-x-ui status
-x-ui enable
-x-ui disable
-x-ui log
-x-ui reset-user
-x-ui reset-port
-x-ui info
+```bash
 x-ui cert
 x-ui cert status
 x-ui cert renew
 x-ui cert autorenew
-x-ui update
-x-ui uninstall
 ```
-# 配置要求
-## 内存  
-- 128MB minimal/256MB+ recommend  
-## OS  
-- CentOS 7+
-- Ubuntu 16+
-- Debian 8+
 
-# 变更记录   
-- 2023.07.18：随机生成Reality dest与serverNames,去除微软域名;细化sniffing配置  
-- 2023.06.10：开启TLS时自动复用面板证书与域名;增加证书热重载设定;优化设备限制功能  
-- 2023.04.09：支持Reality;支持新的telegram bot控制指令  
-- 2023.03.05：支持用户到期时间限制;随机用户名、密码与端口生成
-- 2023.02.09：支持单端口内用户流量限制与统计；支持VLESS utls配置与分享链接导出  
-- 2022.12.07：添加设备并发限制;细化tls配置,支持minVersion、maxVersion与cipherSuites选择    
-- 2022.11.14：添加xtls-rprx-vision流控选项;定时自动更新geo与清除日志  
-- 2022.10.23：实现全英文支持;增加批量导出分享链接功能；优化页面细节与Telegram通知    
-- 2022.08.11：实现Vmess/Vless/Trojan单端口多用户；增加CPU使用超限提醒  
-- 2022.07.28：增加acme standalone模式申请证书;增加x-ui自动保活机制;优化编译选项以适配更多系统  
-- 2022.07.24：增加自动生成面板根路径，节点流量自动重置功能，设备IP接入变化通知功能
-- 2022.07.21：增加节点IP接入变化提醒，Web面板增加停止/重启xray功能，优化部分翻译
-- 2022.07.11：增加节点到期提醒、流量预警策略，增加Telegram bot节点复制、获取分享链接等
-- 2022.07.03：重构Telegram bot功能，指令控制不再需要键盘输入;增加Trojan底层传输配置
-- 2022.06.19：增加Shadowsocs2022新的Cipher，增加节点搜索、一键清除流量功能
-- 2022.05.14：增加Telegram bot Command控制功能，支持关闭/开启/删除节点等
-- 2022.04.25：增加SSH登录提醒、面板登录提醒
-- 2022.04.23：增加更多Telegram bot提醒功能
-- 2022.04.16：增加面板设置Telegram bot功能
-- 2022.04.12：优化Telegram Bot通知提醒
-- 2022.04.06：优化安装/更新流程，增加证书签发功能，添加Telegram bot机器人推送功能
-# Telegram
+`x-ui uninstall` 需要输入 `UNINSTALL` 才会继续，避免误删服务。
 
-[订阅频道](https://t.me/CoderfanBaby)  
-[讨论群组](https://t.me/franzkafayu)
+## 证书管理
 
-# 致谢
+证书目录：
 
-- [vaxilu/x-ui](https://github.com/vaxilu/x-ui)
-- [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
-- [telegram-bot-api](https://github.com/go-telegram-bot-api/telegram-bot-api)  
+```text
+/etc/x-ui/certs/<name>/
+  fullchain.pem
+  privkey.pem
+  meta.json
+```
 
-# 广告赞助  
+支持：
 
-如果你觉得本项目对你有用,而且你也恰巧有这方面的需求,你也可以选择通过我的购买链接赞助我  
-- [搬瓦工GIA高端线路](https://bandwagonhost.com/aff.php?aff=65703),仅推荐购买GIA套餐      
-- [Cloudcone性价比主机提供商](https://app.cloudcone.com/?ref=7536)  
-- [Spartan三网4837性价比主机](https://billing.spartanhost.net/aff.php?aff=1875)
+- 查看证书
+- 导入证书
+- 删除证书并备份
+- 设置面板 HTTPS 证书
+- 申请域名证书（acme.sh standalone HTTP-01）
+- 查看续期状态
+- 立即续期
+- 自动续期开关
 
-  
-如果你希望购买一些现成的代理服务,可选择下述代理服务
-- [搬瓦工关联机场](https://justmysocks.net/members/aff.php?aff=18177)  
-- [高端奶昔机场](https://nxboom.com/signupbyemail.aspx?MemberCode=2fd79885e45549049c66698f1eea154620230921234746)
+API：
 
-VPS推送可关注电报[频道](https://t.me/VpsReStockAlert)  
+```http
+GET /api/certificates
+```
 
-## Stargazers over time
+API 只返回元数据和路径，不返回私钥内容。
 
-[![Stargazers over time](https://starchart.cc/FranzKafkaYu/x-ui.svg)](https://starchart.cc/FranzKafkaYu/x-ui)
+## HTTP + TLS
+
+项目不新增 `https` 协议。HTTPS 入站通过：
+
+```text
+protocol = http
+streamSettings.security = tls
+```
+
+也就是：HTTP + TLS = HTTPS。
+
+HTTP TLS 模式必须提供有效 `certificateFile` 和 `keyFile`。
+
+## REALITY
+
+REALITY 是独立安全层，不使用 TLS 证书。REALITY 字段包括：
+
+- dest
+- serverNames
+- fingerprint
+- privateKey
+- publicKey
+- shortIds
+- spiderX
+
+证书管理系统不参与 REALITY 配置。
+
+## 开发环境
+
+推荐：
+
+- Go 1.26+
+- Node.js，用于 Playwright DOM 检查
+- systemd 环境，用于安装脚本和服务验证
+
+准备依赖：
+
+```bash
+go mod download
+```
+
+## 构建命令
+
+```bash
+go build ./...
+go build -o x-ui .
+```
+
+## 测试命令
+
+```bash
+go test ./...
+bash -n install.sh
+bash -n x-ui.sh
+scripts/rc_smoke.sh
+scripts/rc_upgrade_smoke.sh
+node scripts/share_link_validate.js
+```
+
+DOM 自动化需要运行中的面板：
+
+```bash
+XUI_BASE_URL=http://127.0.0.1:PORT \
+XUI_USERNAME=USERNAME \
+XUI_PASSWORD=PASSWORD \
+node scripts/ui_dom_check.js
+```
+
+## 目录说明
+
+- `protocol/`：协议模块、验证、迁移、FormSchema、配置生成
+- `runtime/`：Runtime API、Planner、Builder、Reconciler、fallback
+- `database/`：SQLite 初始化和迁移
+- `web/`：Gin 服务、Controller、Service、模板、前端资源
+- `scripts/`：烟测、升级测试、DOM 检查、分享链接验证
+- `xray/`：Xray 进程和配置包装
+- `install.sh`：一键安装脚本
+- `x-ui.sh`：管理命令脚本
+- `knowledge-base/`：项目知识库和二开指南
+
+## 安全说明
+
+上传远程仓库前不得包含：
+
+- 真实密码、Token、Cookie、Session
+- SSH Key、私钥、证书私钥
+- 真实数据库文件
+- `node_modules/`
+- `backup/`、`archive/`、`combined-backup/`
+- `*.tar.gz`、`*.sha256`
+
+`.gitignore` 已默认排除这些本地文件。
+
+## 远程上传说明
+
+推荐上传前检查：
+
+```bash
+git status --short
+git ls-files | grep -E 'node_modules|backup|archive|combined-backup|\.tar\.gz|\.sha256|\.pem|\.key|\.crt|\.db' || true
+go build ./...
+go test ./...
+bash -n install.sh
+bash -n x-ui.sh
+```
+
+上传前建议阅读：
+
+- `knowledge-base/00-project-overview.md`
+- `knowledge-base/02-source-skill-tree.md`
+- `knowledge-base/03-development-guide.md`
+- `knowledge-base/11-lessons-learned.md`
+
+## 归档说明
+
+本地归档包不进入 Git 仓库。需要长期保存时，使用独立目录保存：
+
+- Project Archive
+- Combined Backup
+- 对应 `.sha256`
+
+归档内容应保存在仓库外部或被 `.gitignore` 排除。

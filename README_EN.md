@@ -1,64 +1,52 @@
-# X-UI
+# Modern x-ui
 
-[简体中文](./README.md)| ENGLISH  
-X-UI is a webUI panel based on Xray-core which supports multi protocols and multi users  
-This project is a fork of [vaxilu&#39;s project](https://github.com/vaxilu/x-ui),and it is a experiental project which used by myself for learning golang   
-If you need more language options ,please open a issue and let me know that
+Modern x-ui is a maintained modernization branch of x-ui. It keeps the original lightweight Go + SQLite + server-rendered panel architecture while upgrading the project to Xray-core 26.x and adding safer authentication, migrations, protocol modules, Runtime API reconciliation, certificate management, and secure install scripts.
 
-# Changes   
-- 2023.07.18：Random Reality dest and serverNames;more detailed sniffing settings available  
-- 2023.06.10：Enable TLS will reuse panel's certs and domain;add setting for ocspStapling;refactor device limit  
-- 2023.04.09：Support REALITY for now  
-- 2023.03.05：User expiry time limit for each user  
-- 2023.02.09：User traffic limit for each user,support utls sharing link  
-- 2022.12.07：Add device limit and more tls configuration  
-- 2022.11.15：Add xtls-rprx-vision flow option;cron job for geo update and log clear    
-- 2022.10.23：Fully support for English,add export links,add CPU cores display
-- 2022.08.11：Support multi users on the same port;add CPU limit exceed  alert  
-- 2022.07.28：Add acme standalone mode for cert issue；add  mechanism to keep X-UI alive even there exist crashes
-- 2022.07.24：Add base path auto generate feature for security;add traffice reset automatically;add device alert
-- 2022.07.21：Add more translations;add restart/stop xray service in Web panel
-- 2022.07.11：Add time expiration notify for each inbound;add traffic limit notify for each inbound;add get url link command/inbound copy command in telegram bot  
-- 2022.07.03：Add transport options in Trojan protocol;restruct Telegram bot for convenience  
-- 2022.06.19：Add shadowsocks 2022 Ciphers,add inbounds search,traffic clear function in WebUI
-- 2022.05.14：Add Telegram bot commands,support enable/disable/delete/status check
-- 2022.04.25：Add SSH login notify
-- 2022.04.23：Add WebUi login notify
-- 2022.04.16：Add Telegram bot set up in WebUi pannel
-- 2022.04.12：Optimize Telegram bot notify,more human friendly
-- 2022.04.06：Add cert issue function，optimize installation/update and add telegram bot notify
+## Features
 
-# Basics
+- Go 1.26 baseline
+- Xray-core 26.6.1 baseline
+- SQLite storage
+- `schema_migrations`
+- `password_hash` migration
+- `inbound_clients` migration
+- ProtocolModule-driven inbound config generation
+- Runtime API sync with full restart fallback
+- CSRF and hardened session cookies
+- Random first-run username, password, and panel port
+- Secure installer and `x-ui` management command
+- Certificate manager, ACME domain certificates, auto renewal
+- TLS certificate selector
+- HTTP + TLS mode
+- REALITY / Vision / XHTTP / mixed support
 
-- support system status info check
-- support multi protocols and multi users
-- support protocols：vmess、vless、trojan、shadowsocks、dokodemo-door、socks、http
-- support many transport method including tcp、udp、ws、kcp etc
-- traffic counting,traffic restrict and time restrcit
-- support custom configuration template
-- support https access fot WebUI
-- support SSL cert issue by Acme
-- support telegram bot notify and control
-- more functions in control menu  
+## Supported Protocols
 
-for more detailed usages,plz see [WIKI](https://github.com/FranzKafkaYu/x-ui/wiki)
+- VMess
+- VLESS
+- Trojan
+- Shadowsocks
+- Dokodemo-door
+- SOCKS
+- HTTP
+- mixed
+- tunnel
 
-# Installation
-Make sure `bash`, `curl`, `systemd`, and network access are available. The installer supports Debian, Ubuntu, CentOS, Rocky, and Alma on amd64/arm64.
+TUIC is not implemented unless future Xray-core source code confirms native inbound support.
 
-The installer generates a random username, random password, and a random panel port in the 10000-59999 range. The login credentials are printed only to the current terminal.
+## Installation
 
+The installer supports Debian, Ubuntu, CentOS, Rocky, and Alma on amd64/arm64.
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/<your-repo>/x-ui/master/install.sh)
 ```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh)
-```  
-To install a specific version:
-```
-bash <(curl -Ls https://raw.githubusercontent.com/FranzKafkaYu/x-ui/master/install.sh) beta-v0.1.0
-``` 
 
-## Shortcut  
-After installation, use the `x-ui` command:
-```
+The installer generates a random username, strong random password, and random panel port in the 10000-59999 range. Credentials are printed only to the current terminal.
+
+## Management Commands
+
+```bash
 x-ui start
 x-ui stop
 x-ui restart
@@ -69,40 +57,134 @@ x-ui log
 x-ui reset-user
 x-ui reset-port
 x-ui info
-x-ui cert
-x-ui cert status
-x-ui cert renew
-x-ui cert autorenew
 x-ui update
 x-ui uninstall
 ```
 
-# System requirements:  
-## MEM  
-- 128MB minimal/256MB+ recommend  
-## OS
-- CentOS 7+
-- Ubuntu 16+
-- Debian 8+
+Certificate commands:
 
-# Telegram
+```bash
+x-ui cert
+x-ui cert status
+x-ui cert renew
+x-ui cert autorenew
+```
 
-[Channel](https://t.me/CoderfanBaby)  
-[Group](https://t.me/franzkafayu)
+`x-ui uninstall` requires typing `UNINSTALL` before it proceeds.
 
-# Credits
-- [vaxilu/x-ui](https://github.com/vaxilu/x-ui)
-- [XTLS/Xray-core](https://github.com/XTLS/Xray-core)
-- [telegram-bot-api](https://github.com/go-telegram-bot-api/telegram-bot-api)  
+## Certificate Management
 
-# Sponsor  
+Certificate layout:
 
-if you want to purchase some virtual servers,you can purchase by my aff link:   
-- [BandwagonHost](https://bandwagonhost.com/aff.php?aff=65703)     
-- [Cloudcone](https://app.cloudcone.com/?ref=7536)  
-- [SpartanHost](https://billing.spartanhost.net/aff.php?aff=1875)  
+```text
+/etc/x-ui/certs/<name>/
+  fullchain.pem
+  privkey.pem
+  meta.json
+```
 
+Supported operations:
 
-## Stargazers over time
+- list certificates
+- import certificate
+- delete certificate with backup
+- set panel HTTPS certificate
+- issue domain certificate with acme.sh standalone HTTP-01
+- view renewal status
+- renew now
+- toggle auto renewal
 
-[![Stargazers over time](https://starchart.cc/FranzKafkaYu/x-ui.svg)](https://starchart.cc/FranzKafkaYu/x-ui)
+API:
+
+```http
+GET /api/certificates
+```
+
+The API returns metadata and paths only. It never returns private key contents.
+
+## HTTP + TLS
+
+The project does not add a fake `https` protocol. HTTPS inbound mode is represented as:
+
+```text
+protocol = http
+streamSettings.security = tls
+```
+
+HTTP TLS mode requires valid `certificateFile` and `keyFile` paths.
+
+## REALITY
+
+REALITY is a separate security mode and does not use TLS certificates. Certificate management must not be mixed into REALITY settings.
+
+## Development
+
+Recommended tools:
+
+- Go 1.26+
+- Node.js for Playwright DOM checks
+- systemd environment for install/service validation
+
+Build:
+
+```bash
+go mod download
+go build ./...
+go build -o x-ui .
+```
+
+Test:
+
+```bash
+go test ./...
+bash -n install.sh
+bash -n x-ui.sh
+scripts/rc_smoke.sh
+scripts/rc_upgrade_smoke.sh
+node scripts/share_link_validate.js
+```
+
+DOM checks require a running panel:
+
+```bash
+XUI_BASE_URL=http://127.0.0.1:PORT \
+XUI_USERNAME=USERNAME \
+XUI_PASSWORD=PASSWORD \
+node scripts/ui_dom_check.js
+```
+
+## Directory Guide
+
+- `protocol/`: protocol modules, validation, migration, FormSchema, config generation
+- `runtime/`: Runtime API, planner, builder, reconciler, fallback
+- `database/`: SQLite initialization and migrations
+- `web/`: Gin server, controllers, services, templates, frontend assets
+- `scripts/`: smoke tests, upgrade tests, DOM checks, share-link validation
+- `xray/`: Xray process/config wrapper
+- `install.sh`: unattended installer
+- `x-ui.sh`: management command script
+- `knowledge-base/`: project knowledge base and secondary development guide
+
+## Security Notes
+
+Do not upload local secrets or generated artifacts:
+
+- passwords, tokens, cookies, sessions
+- SSH keys, private keys, certificate private keys
+- real database files
+- `node_modules/`
+- `backup/`, `archive/`, `combined-backup/`
+- `*.tar.gz`, `*.sha256`
+
+The repository `.gitignore` excludes these local files by default.
+
+## Remote Upload Checklist
+
+```bash
+git status --short
+git ls-files | grep -E 'node_modules|backup|archive|combined-backup|\.tar\.gz|\.sha256|\.pem|\.key|\.crt|\.db' || true
+go build ./...
+go test ./...
+bash -n install.sh
+bash -n x-ui.sh
+```

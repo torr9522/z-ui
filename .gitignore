@@ -1,9 +1,39 @@
-.idea
-tmp
-bin/xray-darwin-arm64
-bin/config.json
-dist/
-x-ui-*.tar.gz
+.idea/
+
+# Local build outputs
 /x-ui
-/release.sh
+x-ui-*.tar.gz
+dist/
+
+# Runtime/generated config and release artifacts
+bin/config.json
+release.sh
 .sync*
+
+# Local dependencies and test artifacts
+node_modules/
+playwright-report/
+test-results/
+.cache/
+tmp/
+logs/
+
+# Local archives and backups
+backup/
+archive/
+combined-backup/
+*.tar.gz
+*.sha256
+
+# Local state and secrets
+*.db
+*.pem
+*.key
+*.crt
+
+# Local pre-reboot snapshots
+pre-reboot-*.txt
+pre-reboot-*.patch
+
+# Unsupported local binaries
+bin/xray-darwin-arm64
