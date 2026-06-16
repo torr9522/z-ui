@@ -39,7 +39,7 @@ TUIC is not implemented unless future Xray-core source code confirms native inbo
 The installer supports Debian, Ubuntu, CentOS, Rocky, and Alma on amd64/arm64.
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/<your-repo>/x-ui/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/torr9522/z-ui/z-ui/install.sh)
 ```
 
 The installer generates a random username, strong random password, and random panel port in the 10000-59999 range. Credentials are printed only to the current terminal.

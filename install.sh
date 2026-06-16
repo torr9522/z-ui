@@ -7,7 +7,7 @@ CONFIG_DIR="/etc/x-ui"
 DB_PATH="${CONFIG_DIR}/x-ui.db"
 SERVICE_PATH="/etc/systemd/system/x-ui.service"
 COMMAND_PATH="/usr/bin/x-ui"
-REPO="${XUI_REPO:-FranzKafkaYu/x-ui}"
+REPO="${XUI_REPO:-torr9522/z-ui}"
 VERSION="${1:-${XUI_VERSION:-}}"
 TMP_DIR=""
 

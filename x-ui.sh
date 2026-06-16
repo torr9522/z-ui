@@ -8,7 +8,8 @@ CONFIG_DIR="/etc/x-ui"
 DB_PATH="${CONFIG_DIR}/x-ui.db"
 CERTS_DIR="${CONFIG_DIR}/certs"
 SERVICE_NAME="x-ui"
-REPO="${XUI_REPO:-FranzKafkaYu/x-ui}"
+REPO="${XUI_REPO:-torr9522/z-ui}"
+BRANCH="${XUI_BRANCH:-z-ui}"
 DEFAULT_ACME_DOMAIN="cshtps.527270.xyz"
 RENEW_SERVICE="/etc/systemd/system/x-ui-cert-renew.service"
 RENEW_TIMER="/etc/systemd/system/x-ui-cert-renew.timer"
@@ -969,7 +970,7 @@ EOF
 
 cmd_update() {
   require_root
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${REPO}/master/install.sh")
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh")
 }
 
 cmd_uninstall() {

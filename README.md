@@ -41,7 +41,7 @@ Modern x-ui 是基于 x-ui 的现代化维护分支，目标是在保持原项�
 安装脚本支持 Debian、Ubuntu、CentOS、Rocky、Alma 的 amd64/arm64 环境。
 
 ```bash
-bash <(curl -Ls https://raw.githubusercontent.com/<your-repo>/x-ui/master/install.sh)
+bash <(curl -Ls https://raw.githubusercontent.com/torr9522/z-ui/z-ui/install.sh)
 ```
 
 安装流程会生成随机用户名、随机强密码和 10000-59999 范围内的随机面板端口。登录信息只输出到当前终端。
