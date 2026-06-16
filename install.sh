@@ -107,7 +107,7 @@ download_package() {
       VERSION="$(latest_version)"
     fi
     [[ -n "${VERSION}" ]] || fail "failed to resolve latest release version"
-    url="https://github.com/${REPO}/releases/download/${VERSION}/x-ui-linux-${ARCH}.tar.gz"
+    url="https://github.com/${REPO}/releases/download/${VERSION}/z-ui-linux-${ARCH}.tar.gz"
   fi
 
   log "Downloading ${APP_NAME} package: ${url}" >&2
