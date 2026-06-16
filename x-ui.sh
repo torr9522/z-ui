@@ -91,6 +91,14 @@ cert_dir() {
   printf '%s/%s\n' "${CERTS_DIR}" "${name}"
 }
 
+is_ignored_cert_dir() {
+  local name="$1"
+  case "${name}" in
+    deleted.*|*.bak.*|backup.*|tmp.*|test.*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 cert_meta_file() {
   local name="$1"
   printf '%s/meta.json\n' "$(cert_dir "$name")"
@@ -103,7 +111,12 @@ backup_path() {
 
 cert_list_names() {
   ensure_certs_dir
-  find "${CERTS_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort
+  find "${CERTS_DIR}" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | while IFS= read -r name; do
+    if is_ignored_cert_dir "${name}"; then
+      continue
+    fi
+    printf '%s\n' "${name}"
+  done | sort
 }
 
 cert_meta_value() {
@@ -363,10 +376,94 @@ current_port() {
   printf '%s\n' "${port:-unknown}"
 }
 
+current_setting() {
+  local key="$1"
+  sqlite_value "select value from settings where key='${key}' limit 1;"
+}
+
+current_web_cert() {
+  current_setting "webCertFile"
+}
+
+current_web_key() {
+  current_setting "webKeyFile"
+}
+
+panel_https_enabled() {
+  local cert_file key_file
+  cert_file="$(current_web_cert)"
+  key_file="$(current_web_key)"
+  [[ -n "${cert_file}" && -n "${key_file}" && -f "${cert_file}" && -f "${key_file}" ]]
+}
+
+cert_domain_from_file() {
+  local cert_file="$1"
+  local meta_file domain
+  meta_file="$(dirname "${cert_file}")/meta.json"
+  if [[ -f "${meta_file}" ]]; then
+    domain="$(cert_meta_value "${meta_file}" domain)"
+    if [[ -n "${domain}" ]]; then
+      printf '%s\n' "${domain}"
+      return
+    fi
+  fi
+  if command -v openssl >/dev/null 2>&1 && [[ -f "${cert_file}" ]]; then
+    domain="$(openssl x509 -noout -subject -in "${cert_file}" 2>/dev/null | sed -n 's/.*CN *= *//p' | sed 's#/$##' | head -n1)"
+    if [[ -n "${domain}" ]]; then
+      printf '%s\n' "${domain}"
+      return
+    fi
+  fi
+  server_ip
+}
+
+panel_scheme() {
+  if panel_https_enabled; then
+    printf 'https\n'
+  else
+    printf 'http\n'
+  fi
+}
+
+panel_host() {
+  if panel_https_enabled; then
+    cert_domain_from_file "$(current_web_cert)"
+  else
+    server_ip
+  fi
+}
+
+panel_url() {
+  local port="${1:-$(current_port)}"
+  printf '%s://%s:%s\n' "$(panel_scheme)" "$(panel_host)" "${port}"
+}
+
 current_username() {
   local username
   username="$(sqlite_value "select username from users order by id asc limit 1;")"
   printf '%s\n' "${username:-unknown}"
+}
+
+current_version() {
+  if [[ -x "${BIN}" ]]; then
+    "${BIN}" -v 2>/dev/null || printf 'unknown\n'
+  else
+    printf 'unknown\n'
+  fi
+}
+
+current_commit() {
+  if [[ -f "${INSTALL_DIR}/COMMIT" ]]; then
+    head -n1 "${INSTALL_DIR}/COMMIT"
+  elif [[ -d "${INSTALL_DIR}/.git" ]] && command -v git >/dev/null 2>&1; then
+    git -C "${INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || printf 'unknown\n'
+  else
+    printf 'unknown\n'
+  fi
+}
+
+service_status() {
+  systemctl is-active "${SERVICE_NAME}" 2>/dev/null || printf 'unknown\n'
 }
 
 cmd_start() {
@@ -431,7 +528,7 @@ cmd_reset_port() {
   systemctl restart "${SERVICE_NAME}"
   cat <<EOF
 Panel URL:
-http://$(server_ip):${port}
+$(panel_url "${port}")
 
 Port:
 ${port}
@@ -442,13 +539,25 @@ cmd_info() {
   require_installed
   cat <<EOF
 Panel URL:
-http://$(server_ip):$(current_port)
+$(panel_url)
 
 Username:
 $(current_username)
 
 Password:
 not displayed
+
+Service Status:
+$(service_status)
+
+Version:
+$(current_version)
+
+Commit:
+$(current_commit)
+
+Panel Port:
+$(current_port)
 
 Config:
  ${DB_PATH}
@@ -522,6 +631,14 @@ cmd_cert_import() {
   read -r -p "privkey.pem path: " key_source
   [[ -f "${fullchain_source}" ]] || fail "certificate file not found: ${fullchain_source}"
   [[ -f "${key_source}" ]] || fail "private key file not found: ${key_source}"
+  command -v openssl >/dev/null 2>&1 || fail "openssl is required to validate certificate and private key"
+
+  local cert_mod key_mod
+  cert_mod="$(openssl x509 -noout -modulus -in "${fullchain_source}" 2>/dev/null || true)"
+  key_mod="$(openssl rsa -noout -modulus -in "${key_source}" 2>/dev/null || true)"
+  if [[ -z "${cert_mod}" || -z "${key_mod}" || "${cert_mod}" != "${key_mod}" ]]; then
+    fail "证书与私钥不匹配"
+  fi
 
   target_dir="$(cert_dir "${name}")"
   if [[ -d "${target_dir}" ]]; then
@@ -782,7 +899,7 @@ cmd_cert_renew() {
 
 cmd_cert_autorenew() {
   ensure_certs_dir
-  local name state meta
+  local name state meta cert_type
   name="$(choose_certificate)" || return 0
   read -r -p "Auto renew for ${name} [on/off]: " state
   case "${state}" in
@@ -792,6 +909,11 @@ cmd_cert_autorenew() {
   esac
   meta="$(cert_meta_file "${name}")"
   [[ -f "${meta}" ]] || fail "meta.json not found for ${name}"
+  normalize_cert_meta "${name}"
+  cert_type="$(cert_meta_value "${meta}" type)"
+  if [[ "${state}" == "true" && "${cert_type}" == "imported" ]]; then
+    fail "Imported certificates do not support ACME renewal."
+  fi
   cert_meta_set "${meta}" autoRenew "${state}"
   if [[ "${state}" == "true" ]]; then
     install_cert_renew_timer
@@ -852,6 +974,12 @@ cmd_update() {
 
 cmd_uninstall() {
   require_root
+  local confirm
+  read -r -p "Type UNINSTALL to confirm uninstall x-ui: " confirm || confirm=""
+  if [[ "${confirm}" != "UNINSTALL" ]]; then
+    printf 'Uninstall cancelled\n'
+    return 0
+  fi
   systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
   systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1 || true
   rm -f "/etc/systemd/system/${SERVICE_NAME}.service"

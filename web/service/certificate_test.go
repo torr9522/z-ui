@@ -75,3 +75,22 @@ func TestCertificateServiceList(t *testing.T) {
 		t.Fatal("expected service-test certificate in list")
 	}
 }
+
+func TestIgnoredCertificateDirs(t *testing.T) {
+	cases := map[string]bool{
+		"deleted.example":       true,
+		"example.bak.20260616":  true,
+		"backup.example":        true,
+		"tmp.example":           true,
+		"test.example":          true,
+		"example.com":           false,
+		"imported.example.com":  false,
+		"example.backup.domain": false,
+	}
+
+	for name, expected := range cases {
+		if got := isIgnoredCertificateDir(name); got != expected {
+			t.Fatalf("isIgnoredCertificateDir(%q) = %v, expected %v", name, got, expected)
+		}
+	}
+}

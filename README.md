@@ -58,6 +58,10 @@ x-ui log
 x-ui reset-user
 x-ui reset-port
 x-ui info
+x-ui cert
+x-ui cert status
+x-ui cert renew
+x-ui cert autorenew
 x-ui update
 x-ui uninstall
 ```
@@ -141,39 +145,26 @@ x-ui uninstall
 
 
 # 快捷方式
-安装成功后，通过键入`x-ui`进入控制选项菜单，目前菜单内容：
+安装成功后，可通过 `x-ui <command>` 使用管理命令：
 ```
-  x-ui 面板管理脚本
-  0. 退出脚本
-————————————————
-  1. 安装 x-ui
-  2. 更新 x-ui
-  3. 卸载 x-ui
-————————————————
-  4. 重置用户名密码
-  5. 重置面板设置
-  6. 设置面板端口
-  7. 查看当前面板设置
-————————————————
-  8. 启动 x-ui
-  9. 停止 x-ui
-  10. 重启 x-ui
-  11. 查看 x-ui 状态
-  12. 查看 x-ui 日志
-————————————————
-  13. 设置 x-ui 开机自启
-  14. 取消 x-ui 开机自启
-————————————————
-  15. 一键安装 bbr (最新内核)
-  16. 一键申请SSL证书(acme申请)
- 
-面板状态: 已运行
-是否开机自启: 是
-xray 状态: 运行
-
-请输入选择 [0-16]: 
+x-ui start
+x-ui stop
+x-ui restart
+x-ui status
+x-ui enable
+x-ui disable
+x-ui log
+x-ui reset-user
+x-ui reset-port
+x-ui info
+x-ui cert
+x-ui cert status
+x-ui cert renew
+x-ui cert autorenew
+x-ui update
+x-ui uninstall
 ```
-# 配置要求  
+# 配置要求
 ## 内存  
 - 128MB minimal/256MB+ recommend  
 ## OS  

@@ -69,6 +69,10 @@ x-ui log
 x-ui reset-user
 x-ui reset-port
 x-ui info
+x-ui cert
+x-ui cert status
+x-ui cert renew
+x-ui cert autorenew
 x-ui update
 x-ui uninstall
 ```

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 	"x-ui/web/entity"
 )
@@ -26,6 +27,16 @@ type certificateMeta struct {
 
 type CertificateService struct{}
 
+func isIgnoredCertificateDir(name string) bool {
+	if strings.HasPrefix(name, "deleted.") ||
+		strings.HasPrefix(name, "backup.") ||
+		strings.HasPrefix(name, "tmp.") ||
+		strings.HasPrefix(name, "test.") {
+		return true
+	}
+	return strings.Contains(name, ".bak.")
+}
+
 func (s *CertificateService) List() ([]*entity.Certificate, error) {
 	entries, err := os.ReadDir(certificatesDir)
 	if os.IsNotExist(err) {
@@ -41,6 +52,9 @@ func (s *CertificateService) List() ([]*entity.Certificate, error) {
 			continue
 		}
 		name := entry.Name()
+		if isIgnoredCertificateDir(name) {
+			continue
+		}
 		dir := filepath.Join(certificatesDir, name)
 		metaPath := filepath.Join(dir, "meta.json")
 		certPath := filepath.Join(dir, "fullchain.pem")
