@@ -8,7 +8,7 @@ DB_PATH="${CONFIG_DIR}/x-ui.db"
 SERVICE_PATH="/etc/systemd/system/x-ui.service"
 COMMAND_PATH="/usr/bin/x-ui"
 REPO="${XUI_REPO:-torr9522/z-ui}"
-VERSION="${1:-${XUI_VERSION:-}}"
+XUI_RELEASE_VERSION="${1:-${XUI_VERSION:-}}"
 TMP_DIR=""
 
 log() {
@@ -103,11 +103,11 @@ download_package() {
   local url="${XUI_INSTALL_PACKAGE_URL:-}"
 
   if [[ -z "${url}" ]]; then
-    if [[ -z "${VERSION}" ]]; then
-      VERSION="$(latest_version)"
+    if [[ -z "${XUI_RELEASE_VERSION}" ]]; then
+      XUI_RELEASE_VERSION="$(latest_version)"
     fi
-    [[ -n "${VERSION}" ]] || fail "failed to resolve latest release version"
-    url="https://github.com/${REPO}/releases/download/${VERSION}/z-ui-linux-${ARCH}.tar.gz"
+    [[ -n "${XUI_RELEASE_VERSION}" ]] || fail "failed to resolve latest release version"
+    url="https://github.com/${REPO}/releases/download/${XUI_RELEASE_VERSION}/z-ui-linux-${ARCH}.tar.gz"
   fi
 
   log "Downloading ${APP_NAME} package: ${url}" >&2
