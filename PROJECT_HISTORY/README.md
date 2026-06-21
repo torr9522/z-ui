@@ -1,47 +1,47 @@
-# Project History System
+# 项目历史系统
 
-This directory is the permanent development audit record for this project.
+本目录是项目的永久开发审计记录。
 
-It is not a replacement for Git. Git records code changes. Project History records the engineering context around important development phases:
+它不是 Git 的替代品。Git 记录代码差异；项目历史系统记录每个重要开发阶段背后的工程上下文：
 
-- why the change was made
-- what changed
-- which files were added, modified, or removed
-- database schema changes
-- API changes
-- UI changes
-- installer and command changes
-- systemd and nftables changes
-- test results
-- final commits
-- file hashes for audit and recovery
+- 为什么修改
+- 修改了什么
+- 哪些文件新增、修改或删除
+- 数据库结构变化
+- API 变化
+- UI 变化
+- 安装器和命令变化
+- systemd 和 nftables 变化
+- 测试结果
+- 最终提交
+- 用于审计和恢复的文件哈希
 
-## Purpose
+## 用途
 
-Use this history for:
+本历史记录用于：
 
-- secondary development
-- rollback planning
-- code audit
-- project handoff
-- AI-assisted continuation after context loss
+- 二次开发
+- 回滚规划
+- 代码审计
+- 项目交接
+- AI 在上下文丢失后继续开发
 
-## Workflow
+## 工作流程
 
-Every major feature or development phase must add a new numbered file:
+每个重要功能或开发阶段都必须新增一个编号文件：
 
 - `006_PORT_GUARD.md`
 - `007_<FEATURE>.md`
 - `008_<FEATURE>.md`
 - `009_<FEATURE>.md`
 
-Do not overwrite old phase records.
+不要覆盖旧阶段记录。
 
-Do not rewrite old phase files after the phase is closed, except to correct obvious formatting mistakes. Future updates must be recorded in a new numbered phase file.
+阶段关闭后不要重写旧阶段文件，除非只是修正明显格式错误。未来更新必须记录在新的编号阶段文件中。
 
-For every new phase, update:
+每个新阶段完成时，需要同步更新：
 
 - `PROJECT_HISTORY/LATEST_STATE.md`
 - `PROJECT_HISTORY/MANIFEST_SHA256.txt`
 
-The manifest should include all files related to the audited phase.
+哈希清单必须包含该审计阶段相关的全部文件。

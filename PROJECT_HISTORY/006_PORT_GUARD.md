@@ -1,175 +1,175 @@
-# 006 Port Guard MVP
+# 006 端口保护 MVP
 
-## Phase Summary
+## 阶段摘要
 
-Port Guard is the first audited phase recorded in the Project History System.
+端口保护是项目历史系统记录的第一个完整审计阶段。
 
-The feature adds IPv4-only window-period unique source IP protection for inbound ports. It temporarily bans an entire inbound port when the number of unique IPv4 source IPs seen within the configured time window exceeds the configured limit.
+该功能为入站端口增加仅 IPv4 的窗口期唯一来源 IP 保护。当配置窗口内访问某个入站端口的唯一 IPv4 来源 IP 数超过限制时，系统会临时封禁整个端口。
 
-Example:
+示例：
 
-- port: `12568`
-- window: `300` seconds
-- unique IPv4 limit: `3`
-- ban time: `300` seconds
+- 端口：`12568`
+- 窗口期：`300` 秒
+- 唯一 IPv4 限制：`3`
+- 封禁时间：`300` 秒
 
-Behavior:
+行为：
 
-1. nftables tracks unique IPv4 source IPs for the protected port during the window.
-2. When the set limit is exceeded, the whole port is added to `blocked_ports`.
-3. nftables timeout automatically removes the ban.
-4. Xray Runtime and inbound configuration are not modified during the ban.
+1. nftables 在窗口期内跟踪受保护端口的唯一 IPv4 来源 IP。
+2. 当 set 超过限制时，整个端口会被加入 `blocked_ports`。
+3. nftables timeout 到期后自动解除封禁。
+4. 封禁期间不修改 Xray Runtime，也不修改 inbound 配置。
 
-## 1. Design Goal
+## 1. 设计目标
 
-### Why Port Guard Was Added
+### 为什么加入端口保护
 
-The project needed a conservative first version of port protection that could reduce abusive multi-IP access on a single inbound port without changing Xray Runtime behavior or client state.
+项目需要一个保守的第一版端口保护能力，用于降低单个入站端口被多 IP 滥用的风险，同时不改变 Xray Runtime 行为和客户端状态。
 
-The MVP focuses on one precise behavior:
+MVP 只聚焦一个明确行为：
 
-- window-period unique IPv4 source IP count
-- temporary whole-port ban
-- automatic nftables timeout recovery
+- 窗口期唯一 IPv4 来源 IP 统计
+- 整个端口临时封禁
+- nftables timeout 自动恢复
 
-### Why nftables
+### 为什么选择 nftables
 
-nftables was selected because it provides:
+选择 nftables 的原因：
 
-- kernel-level packet filtering
-- dynamic timeout sets
-- low-overhead per-port tracking
-- automatic expiry without a long-running daemon
-- a clean separation from Xray Runtime and ProtocolModule
+- 支持内核级包过滤
+- 支持动态 timeout set
+- 适合低开销的按端口跟踪
+- 不需要常驻守护进程即可自动过期
+- 能与 Xray Runtime 和 ProtocolModule 保持清晰隔离
 
-The implemented table is:
+实现使用的表：
 
 ```text
 table inet zui_port_guard
 ```
 
-The main sets are:
+主要 set：
 
 ```text
 blocked_ports
 pg4_<port>
 ```
 
-### Why Runtime Is Not Used
+### 为什么不使用 Runtime
 
-Runtime was intentionally not used for Port Guard MVP.
+端口保护 MVP 明确不使用 Runtime。
 
-Reasons:
+原因：
 
-- banning through Runtime would require removing or mutating Xray inbounds
-- Runtime changes have higher blast radius
-- temporary bans should not rewrite Xray config
-- timeout recovery is simpler and safer in nftables
-- existing protocol behavior remains untouched
+- 通过 Runtime 封禁会要求删除或修改 Xray inbound
+- Runtime 改动影响面更大
+- 临时封禁不应该重写 Xray 配置
+- timeout 自动恢复交给 nftables 更简单、更安全
+- 现有协议行为保持不变
 
-Port Guard does not call Runtime RemoveInbound and does not modify ProtocolModule.
+端口保护不会调用 Runtime RemoveInbound，也不会修改 ProtocolModule。
 
-### Why IPv6 Is Not Included
+### 为什么不做 IPv6
 
-The MVP is IPv4-only.
+MVP 仅支持 IPv4。
 
-IPv6 was deferred because:
+IPv6 延后的原因：
 
-- the audited n-ui implementation was IPv4-focused
-- IPv6 needs separate source-address sets and validation
-- IPv6 deployment and NAT behavior are different
-- the first version should minimize firewall complexity
+- 已审计的 n-ui 实现主要围绕 IPv4
+- IPv6 需要独立来源地址 set 和验证策略
+- IPv6 部署环境和 NAT 行为不同
+- 第一版应尽量降低防火墙复杂度
 
-The implementation must not generate:
+实现禁止生成：
 
 ```text
 pg6_<port>
 ip6 saddr
 ```
 
-### Why Speed Limit Is Not Included
+### 为什么不做限速
 
-Port speed limiting was excluded from MVP.
+端口限速不进入 MVP。
 
-Reasons:
+原因：
 
-- nftables drop rules are not real bandwidth shaping
-- real rate control needs tc/ifb design and interface detection
-- upload/download direction handling is more complex
-- unsafe speed-limit rules can affect unrelated traffic
+- nftables drop 规则不等于真正带宽整形
+- 真正限速需要 tc/ifb、网卡识别和方向处理
+- 上传和下载限速语义更复杂
+- 不安全的限速规则可能影响其它端口流量
 
-No tc, nft speedlimit, or iptables hashlimit logic was added.
+本阶段没有加入 tc、nft speedlimit 或 iptables hashlimit 逻辑。
 
-### Why It Is Not Called Online IP Limit
+### 为什么不叫在线 IP 限制
 
-This feature is not a real-time online IP counter.
+该功能不是实时在线 IP 统计。
 
-It counts unique IPv4 source IPs observed within a time window. Therefore UI wording uses:
+它统计的是指定时间窗口内观察到的唯一 IPv4 来源 IP。因此 UI 文案使用：
 
 - `端口保护`
 - `窗口期 IP 限制`
 - `窗口期唯一 IPv4 数`
 
-The UI explicitly states:
+UI 明确提示：
 
 ```text
 这是窗口期唯一 IPv4 来源 IP 数，不是实时在线 IP 数。
 ```
 
-## 2. Database Changes
+## 2. 数据库变更
 
-Explicit migration:
+显式迁移版本：
 
 ```text
 202606210001_port_guard
 ```
 
-New `inbounds` columns:
+新增 `inbounds` 字段：
 
-| Column | Type | Default | Purpose |
+| 字段 | 类型 | 默认值 | 用途 |
 | --- | --- | --- | --- |
-| `port_guard_enabled` | boolean | `false` | Enables Port Guard on the inbound |
-| `port_guard_window_seconds` | integer | `300` | Unique IPv4 observation window |
-| `port_guard_ip_count` | integer | `0` | Allowed unique IPv4 count; `0` disables |
-| `port_guard_ban_seconds` | integer | `300` | Temporary whole-port ban duration |
-| `port_guard_banned_until` | integer | `0` | Runtime ban status timestamp |
-| `port_guard_last_trigger_ip` | text | `""` | Last observed trigger IP |
-| `port_guard_last_trigger_at` | integer | `0` | Last trigger timestamp |
+| `port_guard_enabled` | boolean | `false` | 是否启用该 inbound 的端口保护 |
+| `port_guard_window_seconds` | integer | `300` | 唯一 IPv4 观察窗口 |
+| `port_guard_ip_count` | integer | `0` | 允许的唯一 IPv4 数；`0` 表示关闭 |
+| `port_guard_ban_seconds` | integer | `300` | 整个端口临时封禁时长 |
+| `port_guard_banned_until` | integer | `0` | 运行态封禁截止时间戳 |
+| `port_guard_last_trigger_ip` | text | `""` | 最近触发封禁的 IP |
+| `port_guard_last_trigger_at` | integer | `0` | 最近触发封禁时间戳 |
 
-New settings defaults:
+新增 settings 默认值：
 
-| Setting | Default |
+| 设置项 | 默认值 |
 | --- | --- |
 | `portGuardEnabled` | `true` |
 | `portGuardWhitelistPorts` | `[]` |
 | `portGuardSyncIntervalSeconds` | `30` |
 | `portGuardLogRetentionDays` | `7` |
 
-AutoMigrate was deliberately limited through a legacy inbound model so Port Guard columns are added by explicit migration.
+为了确保字段通过显式迁移加入，`AutoMigrate` 被限制为旧 inbound 结构，不直接自动增加端口保护字段。
 
-## 3. API Changes
+## 3. API 变更
 
-New login-protected API endpoints:
+新增需要登录态的 API：
 
-| Method | Path | Purpose |
+| 方法 | 路径 | 用途 |
 | --- | --- | --- |
-| `GET` | `/api/port-guard/status` | Return Port Guard status |
-| `POST` | `/api/port-guard/sync` | Run immediate sync |
-| `POST` | `/api/port-guard/unban` | Manually unban a port |
-| `GET` | `/api/port-guard/logs?limit=100` | Return recent Port Guard logs |
+| `GET` | `/api/port-guard/status` | 返回端口保护状态 |
+| `POST` | `/api/port-guard/sync` | 立即执行同步 |
+| `POST` | `/api/port-guard/unban` | 手动解除端口封禁 |
+| `GET` | `/api/port-guard/logs?limit=100` | 返回最近端口保护日志 |
 
-POST endpoints use CSRF protection.
+POST 接口使用 CSRF 保护。
 
-API structure fields remain English for frontend compatibility.
+API 结构字段保持英文，避免破坏前端兼容性。
 
-User-visible API messages are Chinese:
+用户可见 API message 使用中文：
 
 - `获取端口保护状态成功`
 - `同步端口保护规则成功`
 - `解除端口保护封禁成功`
 - `获取端口保护日志成功`
 
-State values remain stable English enum values:
+内部状态枚举保持稳定英文值：
 
 - `OFF`
 - `ACTIVE`
@@ -177,43 +177,43 @@ State values remain stable English enum values:
 - `WHITELISTED`
 - `ERROR`
 
-Display text is exposed separately through:
+中文显示文本通过独立字段返回：
 
 ```json
 "displayText": "正常"
 ```
 
-## 4. UI Changes
+## 4. UI 变更
 
-Inbound form added a new section:
+Inbound 表单新增区域：
 
 ```text
 端口保护
 ```
 
-Fields:
+字段：
 
 - `启用端口保护`
 - `窗口期秒数`
 - `窗口期唯一 IPv4 数`
 - `超限封禁秒数`
 
-User-facing explanation:
+用户说明：
 
 ```text
 统计指定时间窗口内访问该端口的唯一 IPv4 来源 IP。超过限制后临时封禁整个端口。这是窗口期唯一 IPv4 来源 IP 数，不是实时在线 IP 数。
 ```
 
-Inbound list added:
+Inbound 列表新增：
 
-- Port Guard status column
-- sync button
-- log button
-- manual unban button when state is banned
+- 端口保护状态列
+- 同步按钮
+- 日志按钮
+- 已封禁状态下的手动解封按钮
 
-Chinese state display:
+中文状态显示：
 
-| Internal State | Display |
+| 内部状态 | 显示文本 |
 | --- | --- |
 | `ACTIVE` | `正常` |
 | `BANNED` | `已封禁` |
@@ -221,61 +221,61 @@ Chinese state display:
 | `WHITELISTED` | `白名单保护` |
 | `ERROR` | `错误` |
 
-## 5. Installer Changes
+## 5. 安装器变更
 
-`install.sh` now installs Port Guard runtime files when present in the release package:
+`install.sh` 在发布包中存在相关文件时安装端口保护运行文件：
 
 - `scripts/zui-port-guard-sync` -> `/usr/local/bin/zui-port-guard-sync`
 - `zui-port-guard-sync.service` -> `/etc/systemd/system/zui-port-guard-sync.service`
 - `zui-port-guard-sync.timer` -> `/etc/systemd/system/zui-port-guard-sync.timer`
 
-New directories:
+新增目录：
 
 - `/var/lib/z-ui/port-guard`
 - `/var/log/z-ui`
 
-New dependencies:
+新增依赖：
 
 - `nftables`
 - `sqlite3`
 
-Install startup:
+安装后启动：
 
 ```text
 systemctl enable --now zui-port-guard-sync.timer
 systemctl start zui-port-guard-sync.service
 ```
 
-Uninstall cleanup in `x-ui.sh` removes:
+`x-ui.sh` 卸载时清理：
 
 - timer
 - service
-- sync script
-- nft table `inet zui_port_guard`
+- sync 脚本
+- nft 表 `inet zui_port_guard`
 - `/var/lib/z-ui/port-guard`
 
-Logs are preserved by default.
+日志默认保留。
 
-## 6. Command Changes
+## 6. 命令变更
 
-New management entry:
+新增管理入口：
 
 ```text
 x-ui port-guard
 ```
 
-Subcommands:
+子命令：
 
-| Command | Purpose |
+| 命令 | 用途 |
 | --- | --- |
-| `x-ui port-guard status` | Show nftables and timer status |
-| `x-ui port-guard sync` | Run immediate sync |
-| `x-ui port-guard unban <port>` | Remove temporary ban and flush the port IP set |
-| `x-ui port-guard logs` | Show recent Port Guard logs |
+| `x-ui port-guard status` | 显示 nftables 和 timer 状态 |
+| `x-ui port-guard sync` | 立即执行同步 |
+| `x-ui port-guard unban <port>` | 解除临时封禁并清空该端口 IP set |
+| `x-ui port-guard logs` | 显示最近端口保护日志 |
 
-User-visible command output is Chinese.
+用户可见命令输出使用中文。
 
-Examples:
+示例：
 
 ```text
 端口保护状态
@@ -287,15 +287,15 @@ Examples:
 已解除端口 12568 的端口保护封禁
 ```
 
-## 7. nftables Changes
+## 7. nftables 变更
 
-Table:
+表：
 
 ```text
 table inet zui_port_guard
 ```
 
-Global blocked port set:
+全局封禁端口 set：
 
 ```text
 set blocked_ports {
@@ -304,7 +304,7 @@ set blocked_ports {
 }
 ```
 
-Per protected port set:
+每个受保护端口一个 set：
 
 ```text
 set pg4_<port> {
@@ -315,7 +315,7 @@ set pg4_<port> {
 }
 ```
 
-Chains:
+链：
 
 ```text
 chain input {
@@ -327,27 +327,27 @@ chain output {
 }
 ```
 
-Rules:
+规则：
 
-- drop TCP/UDP destination port in `blocked_ports`
-- drop TCP/UDP source port in `blocked_ports`
-- accept already tracked IPv4 source IPs
-- add new IPv4 source IPs to `pg4_<port>`
-- when the per-port set is full, add the whole port to `blocked_ports`
+- 丢弃命中 `blocked_ports` 的 TCP/UDP 目标端口
+- 丢弃命中 `blocked_ports` 的 TCP/UDP 源端口
+- 放行已经记录在 `pg4_<port>` 的 IPv4 来源 IP
+- 将新的 IPv4 来源 IP 加入 `pg4_<port>`
+- 当端口 set 已满时，将整个端口加入 `blocked_ports`
 
-Whitelist protection:
+白名单保护：
 
-- SSH port
-- panel port
+- SSH 端口
+- 面板端口
 - `80`
 - `443`
-- user configured whitelist ports
+- 用户自定义白名单端口
 
-Whitelisted ports do not generate nftables per-port sets.
+白名单端口不会生成对应的 nftables 端口 set。
 
-## 8. Files Changed
+## 8. 修改文件
 
-Modified files:
+修改文件：
 
 - `database/db.go`
 - `database/migration.go`
@@ -363,7 +363,7 @@ Modified files:
 - `web/web.go`
 - `scripts/ui_dom_check.js`
 
-Added files:
+新增文件：
 
 - `database/port_guard_migration_test.go`
 - `web/controller/port_guard.go`
@@ -374,13 +374,13 @@ Added files:
 - `zui-port-guard-sync.service`
 - `zui-port-guard-sync.timer`
 
-Deleted files:
+删除文件：
 
-- None
+- 无
 
-## 9. Test Results
+## 9. 测试结果
 
-Local validation passed:
+本地验证已通过：
 
 - `go build ./...`
 - `go test ./...`
@@ -390,49 +390,49 @@ Local validation passed:
 - `git diff --check`
 - `scripts/rc_smoke.sh`
 - `scripts/rc_upgrade_smoke.sh`
-- sync script dry-run nft generation
-- Playwright DOM check
+- sync 脚本 dry-run nft 生成检查
+- Playwright DOM 检查
 
-Remote validation on `45.77.246.87` passed:
+远程服务器 `45.77.246.87` 验证已通过：
 
 - `x-ui` active
 - `zui-port-guard-sync.timer` active
-- panel HTTP returned `200`
-- nft table `inet zui_port_guard` exists
-- Xray version `26.6.1`
-- `/api/port-guard/status` returned success
-- `x-ui port-guard status` printed Chinese output
-- logs contain Chinese `message` values
-- no IPv6 nftables rules were generated
-- test inbounds were removed after verification
+- 面板 HTTP 返回 `200`
+- nft 表 `inet zui_port_guard` 存在
+- Xray 版本 `26.6.1`
+- `/api/port-guard/status` 返回成功
+- `x-ui port-guard status` 输出中文
+- 日志包含中文 `message` 值
+- 未生成 IPv6 nftables 规则
+- 测试 inbound 已在验证后删除
 
-Known note:
+已知注意点：
 
-- smoke scripts must run sequentially because they share `/etc/x-ui` test state.
+- smoke 脚本必须顺序执行，因为它们共享 `/etc/x-ui` 测试状态。
 
-## 10. Commits
+## 10. 已完成提交
 
-Required Port Guard commits:
+端口保护阶段提交：
 
 - `9338a83` Add Port Guard database fields and API
 - `b5b1c46` Add Port Guard nftables sync script and systemd timer
 - `5571ccb` Add Port Guard UI controls and status display
 - `ffee765` Localize Port Guard user-facing text
 
-## 11. Final State
+## 11. 最终状态
 
-Port Guard MVP is implemented and verified as IPv4-only.
+端口保护 MVP 已实现并验证为仅 IPv4。
 
-It does not implement:
+本阶段未实现：
 
 - IPv6
-- port speed limit
+- 端口限速
 - tc
 - nftables speedlimit
 - iptables shim
 - Runtime RemoveInbound
-- device limit
-- per-client limit
-- subscription system
+- 设备限制
+- 单客户端限制
+- 订阅系统
 
-Future expansion should be recorded in a new numbered Project History phase.
+未来扩展必须记录在新的编号项目历史阶段中。
