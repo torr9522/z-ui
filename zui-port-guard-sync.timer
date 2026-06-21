@@ -1,5 +1,5 @@
 [Unit]
-Description=Run z-ui Port Guard sync periodically
+Description=定期运行 z-ui 端口保护同步
 
 [Timer]
 OnBootSec=20s

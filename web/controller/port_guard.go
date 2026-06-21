@@ -31,12 +31,12 @@ func (a *PortGuardController) initRouter(g *gin.RouterGroup) {
 
 func (a *PortGuardController) status(c *gin.Context) {
 	status, err := a.portGuardService.Status()
-	jsonObj(c, status, err)
+	jsonMsgObj(c, "获取端口保护状态", status, err)
 }
 
 func (a *PortGuardController) sync(c *gin.Context) {
 	result, err := a.portGuardService.SyncNowBlocking()
-	jsonObj(c, result, err)
+	jsonMsgObj(c, "同步端口保护规则", result, err)
 }
 
 func (a *PortGuardController) unban(c *gin.Context) {
@@ -56,5 +56,5 @@ func (a *PortGuardController) unban(c *gin.Context) {
 func (a *PortGuardController) logs(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
 	logs, err := a.portGuardService.Logs(limit)
-	jsonObj(c, logs, err)
+	jsonMsgObj(c, "获取端口保护日志", logs, err)
 }

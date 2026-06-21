@@ -32,18 +32,18 @@ for item in sys.argv[2:]:
         payload[key] = int(value)
     except ValueError:
         payload[key] = value
-print(json.dumps(payload, separators=(",", ":"), ensure_ascii=True))
+print(json.dumps(payload, separators=(",", ":"), ensure_ascii=False))
 PY
 }
 
 fail() {
   json_log error message="$*"
-  printf 'ERROR: %s\n' "$*" >&2
+  printf '错误: %s\n' "$*" >&2
   exit 1
 }
 
 need_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "$1 command not found"
+  command -v "$1" >/dev/null 2>&1 || fail "未找到命令: $1"
 }
 
 table_exists() {
@@ -88,7 +88,7 @@ required = [
     "port_guard_ban_seconds",
 ]
 if any(col not in cols for col in required):
-    raise SystemExit("port guard columns not found")
+    raise SystemExit("端口保护数据库字段不存在")
 
 settings = {row[0]: row[1] for row in cur.execute("select key,value from settings").fetchall()}
 
@@ -311,6 +311,7 @@ for port in sorted(blocked):
     record = {
         "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
         "event": "ban",
+        "message": "触发端口保护封禁",
         "port": port,
         "windowSeconds": int(window or 300),
         "ipLimit": int(ip_limit or 0),
@@ -320,7 +321,7 @@ for port in sorted(blocked):
         "bannedUntil": new_until,
     }
     with open(log_path, "a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, separators=(",", ":"), ensure_ascii=True) + "\n")
+        handle.write(json.dumps(record, separators=(",", ":"), ensure_ascii=False) + "\n")
 
 con.commit()
 PY
@@ -354,7 +355,7 @@ main() {
 
   if [[ "${DRY_RUN}" != "1" && "${desired}" == "${old}" ]] && table_exists; then
     record_runtime_bans
-    json_log sync managedPorts="${managed}" skippedPorts="${skipped}" result="unchanged"
+    json_log sync message="端口保护规则无变化" managedPorts="${managed}" skippedPorts="${skipped}" result="unchanged"
     printf 'unchanged\n'
     printf 'managed_ports=%s\n' "${managed}"
     printf 'skipped_ports=%s\n' "${skipped}"
@@ -364,7 +365,7 @@ main() {
   build_rules "${desired}"
   printf '%s' "${desired}" >"${STATE_FILE}"
   record_runtime_bans
-  json_log sync managedPorts="${managed}" skippedPorts="${skipped}" result="applied"
+  json_log sync message="端口保护规则已同步" managedPorts="${managed}" skippedPorts="${skipped}" result="applied"
   printf 'applied\n'
   printf 'managed_ports=%s\n' "${managed}"
   printf 'skipped_ports=%s\n' "${skipped}"

@@ -120,12 +120,12 @@
                                 <template v-if="portGuardStatusByPort[dbInbound.port]">
                                     <a-tooltip v-if="portGuardStatusByPort[dbInbound.port].protectedByWhitelist">
                                         <template slot="title">该端口受系统保护，未启用端口保护</template>
-                                        <a-tag color="blue">WHITELISTED</a-tag>
+                                        <a-tag color="blue">白名单保护</a-tag>
                                     </a-tooltip>
                                     <template v-else>
                                         <a-tag :color="portGuardTagColor(portGuardStatusByPort[dbInbound.port].state)">
                                             [[ portGuardStatusByPort[dbInbound.port].ipv4Count ]]/[[ portGuardStatusByPort[dbInbound.port].ipLimit ]]
-                                            [[ portGuardStatusByPort[dbInbound.port].state ]]
+                                            [[ portGuardStatusByPort[dbInbound.port].displayText || portGuardStateText(portGuardStatusByPort[dbInbound.port].state) ]]
                                         </a-tag>
                                         <a-tag v-if="portGuardStatusByPort[dbInbound.port].remainingSeconds > 0" color="red">
                                             [[ formatRemaining(portGuardStatusByPort[dbInbound.port].remainingSeconds) ]]
@@ -135,7 +135,7 @@
                                                   @click="unbanPortGuard(dbInbound.port)">解除封禁</a-button>
                                     </template>
                                 </template>
-                                <a-tag v-else color="default">OFF</a-tag>
+                                <a-tag v-else color="default">关闭</a-tag>
                             </template>
                         </a-table>
                     </a-card>
@@ -430,6 +430,20 @@
                         return 'orange';
                     default:
                         return 'default';
+                }
+            },
+            portGuardStateText(state) {
+                switch (state) {
+                    case 'ACTIVE':
+                        return '正常';
+                    case 'BANNED':
+                        return '已封禁';
+                    case 'WHITELISTED':
+                        return '白名单保护';
+                    case 'ERROR':
+                        return '错误';
+                    default:
+                        return '关闭';
                 }
             },
             formatRemaining(seconds) {

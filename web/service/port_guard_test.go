@@ -71,6 +71,21 @@ table inet zui_port_guard {
 	}
 }
 
+func TestPortGuardStateDisplayText(t *testing.T) {
+	tests := map[string]string{
+		"ACTIVE":      "正常",
+		"BANNED":      "已封禁",
+		"OFF":         "关闭",
+		"WHITELISTED": "白名单保护",
+		"ERROR":       "错误",
+	}
+	for state, want := range tests {
+		if got := portGuardStateDisplayText(state); got != want {
+			t.Fatalf("portGuardStateDisplayText(%q) = %q, want %q", state, got, want)
+		}
+	}
+}
+
 func itoa(v int) string {
 	return strconv.Itoa(v)
 }

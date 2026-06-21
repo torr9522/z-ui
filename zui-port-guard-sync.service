@@ -1,5 +1,5 @@
 [Unit]
-Description=z-ui Port Guard nftables sync
+Description=z-ui 端口保护 nftables 同步
 After=network-online.target
 Wants=network-online.target
 

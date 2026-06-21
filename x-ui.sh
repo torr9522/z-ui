@@ -974,28 +974,30 @@ EOF
 }
 
 cmd_port_guard_status() {
+  printf '端口保护状态\n'
   if command -v systemctl >/dev/null 2>&1; then
     local timer_state service_state
     timer_state="$(systemctl is-active zui-port-guard-sync.timer 2>/dev/null || true)"
     service_state="$(systemctl is-active zui-port-guard-sync.service 2>/dev/null || true)"
-    printf 'Timer: %s\n' "${timer_state:-unknown}"
-    printf 'Service: %s\n' "${service_state:-unknown}"
+    printf '定时器: %s\n' "$(port_guard_systemd_state_text "${timer_state:-unknown}")"
+    printf '同步服务: %s\n' "$(port_guard_systemd_state_text "${service_state:-unknown}")"
   fi
   if command -v nft >/dev/null 2>&1; then
-    nft list table inet "${PORT_GUARD_TABLE}" 2>/dev/null || printf 'nft table not found: inet %s\n' "${PORT_GUARD_TABLE}"
+    nft list table inet "${PORT_GUARD_TABLE}" 2>/dev/null || printf 'nftables 表不存在: inet %s\n' "${PORT_GUARD_TABLE}"
   else
-    printf 'nft command not found\n'
+    printf '未找到 nft 命令，端口保护不可用\n'
   fi
 }
 
 cmd_port_guard_sync() {
-  [[ -x "${PORT_GUARD_SYNC}" ]] || fail "Port Guard sync script not found: ${PORT_GUARD_SYNC}"
+  [[ -x "${PORT_GUARD_SYNC}" ]] || fail "端口保护同步脚本不存在: ${PORT_GUARD_SYNC}"
+  printf '正在同步端口保护规则...\n'
   "${PORT_GUARD_SYNC}"
 }
 
 cmd_port_guard_unban() {
   local port="${1:-}"
-  [[ "${port}" =~ ^[0-9]+$ ]] || fail "usage: x-ui port-guard unban <port>"
+  [[ "${port}" =~ ^[0-9]+$ ]] || fail "用法: x-ui port-guard unban <端口>"
   if command -v nft >/dev/null 2>&1; then
     nft delete element inet "${PORT_GUARD_TABLE}" blocked_ports "{ ${port} }" 2>/dev/null || true
     nft flush set inet "${PORT_GUARD_TABLE}" "pg4_${port}" 2>/dev/null || true
@@ -1009,19 +1011,31 @@ import json, sys, time
 print(json.dumps({
     "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     "event": "manual_unban",
+    "message": "手动解除端口保护封禁",
     "port": int(sys.argv[1]),
     "operator": "x-ui.sh",
-}, separators=(",", ":")))
+}, separators=(",", ":"), ensure_ascii=False))
 PY
-  printf 'Port Guard unbanned port %s\n' "${port}"
+  printf '已解除端口 %s 的端口保护封禁\n' "${port}"
 }
 
 cmd_port_guard_logs() {
   if [[ -f "${PORT_GUARD_LOG}" ]]; then
     tail -n "${1:-100}" "${PORT_GUARD_LOG}"
   else
-    printf 'Port Guard log not found: %s\n' "${PORT_GUARD_LOG}"
+    printf '端口保护日志不存在: %s\n' "${PORT_GUARD_LOG}"
   fi
+}
+
+port_guard_systemd_state_text() {
+  case "$1" in
+    active) printf '运行中' ;;
+    inactive) printf '未运行' ;;
+    activating) printf '启动中' ;;
+    failed) printf '失败' ;;
+    unknown) printf '未知' ;;
+    *) printf '%s' "$1" ;;
+  esac
 }
 
 cmd_port_guard() {
@@ -1031,7 +1045,7 @@ cmd_port_guard() {
     sync) cmd_port_guard_sync ;;
     unban) shift; cmd_port_guard_unban "$@" ;;
     logs) shift; cmd_port_guard_logs "$@" ;;
-    *) fail "usage: x-ui port-guard {status|sync|unban <port>|logs}" ;;
+    *) fail "用法: x-ui port-guard {status|sync|unban <端口>|logs}" ;;
   esac
 }
 
@@ -1084,13 +1098,13 @@ x-ui command usage:
   x-ui cert autorenew
                     Toggle certificate auto renewal
   x-ui port-guard status
-                    Show Port Guard nftables state
+                    显示端口保护 nftables 状态
   x-ui port-guard sync
-                    Sync Port Guard rules now
+                    立即同步端口保护规则
   x-ui port-guard unban <port>
-                    Remove a Port Guard port ban
+                    解除指定端口的端口保护封禁
   x-ui port-guard logs
-                    Show Port Guard logs
+                    显示端口保护日志
   x-ui update       Reinstall from latest release
   x-ui uninstall    Uninstall service and binaries, keep database
 EOF

@@ -45,6 +45,7 @@ type PortGuardPortStatus struct {
 	BanSeconds           int    `json:"banSeconds"`
 	IPv4Count            int    `json:"ipv4Count"`
 	State                string `json:"state"`
+	DisplayText          string `json:"displayText"`
 	Banned               bool   `json:"banned"`
 	BannedUntil          int64  `json:"bannedUntil"`
 	RemainingSeconds     int64  `json:"remainingSeconds"`
@@ -141,6 +142,7 @@ func (s *PortGuardService) Status() (*PortGuardStatus, error) {
 			BanSeconds:           inbound.PortGuardBanSeconds,
 			IPv4Count:            counts[inbound.Port],
 			State:                state,
+			DisplayText:          portGuardStateDisplayText(state),
 			Banned:               state == "BANNED",
 			BannedUntil:          bannedUntil,
 			RemainingSeconds:     remaining,
@@ -177,10 +179,26 @@ func (s *PortGuardService) Unban(port int, operator string) error {
 	appendPortGuardLog(map[string]interface{}{
 		"time":     time.Now().UTC().Format(time.RFC3339),
 		"event":    "manual_unban",
+		"message":  "手动解除端口保护封禁",
 		"port":     port,
 		"operator": operator,
 	})
 	return nil
+}
+
+func portGuardStateDisplayText(state string) string {
+	switch state {
+	case "ACTIVE":
+		return "正常"
+	case "BANNED":
+		return "已封禁"
+	case "WHITELISTED":
+		return "白名单保护"
+	case "ERROR":
+		return "错误"
+	default:
+		return "关闭"
+	}
 }
 
 func (s *PortGuardService) Logs(limit int) ([]map[string]interface{}, error) {
