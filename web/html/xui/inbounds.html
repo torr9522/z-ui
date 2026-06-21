@@ -45,6 +45,8 @@
                     <a-card hoverable>
                         <div slot="title">
                             <a-button type="primary" icon="plus" @click="openAddInbound"></a-button>
+                            <a-button style="margin-left: 8px;" icon="sync" @click="syncPortGuard"></a-button>
+                            <a-button style="margin-left: 8px;" icon="file-text" @click="showPortGuardLogs"></a-button>
                         </div>
 <!--                        <a-input v-model="searchKey" placeholder="搜索" autofocus style="max-width: 300px"></a-input>-->
                         <a-table :columns="columns" :row-key="dbInbound => dbInbound.id"
@@ -114,6 +116,27 @@
                                 </template>
                                 <a-tag v-else color="green">无限期</a-tag>
                             </template>
+                            <template slot="portGuard" slot-scope="text, dbInbound">
+                                <template v-if="portGuardStatusByPort[dbInbound.port]">
+                                    <a-tooltip v-if="portGuardStatusByPort[dbInbound.port].protectedByWhitelist">
+                                        <template slot="title">该端口受系统保护，未启用端口保护</template>
+                                        <a-tag color="blue">WHITELISTED</a-tag>
+                                    </a-tooltip>
+                                    <template v-else>
+                                        <a-tag :color="portGuardTagColor(portGuardStatusByPort[dbInbound.port].state)">
+                                            [[ portGuardStatusByPort[dbInbound.port].ipv4Count ]]/[[ portGuardStatusByPort[dbInbound.port].ipLimit ]]
+                                            [[ portGuardStatusByPort[dbInbound.port].state ]]
+                                        </a-tag>
+                                        <a-tag v-if="portGuardStatusByPort[dbInbound.port].remainingSeconds > 0" color="red">
+                                            [[ formatRemaining(portGuardStatusByPort[dbInbound.port].remainingSeconds) ]]
+                                        </a-tag>
+                                        <a-button v-if="portGuardStatusByPort[dbInbound.port].state === 'BANNED'"
+                                                  size="small"
+                                                  @click="unbanPortGuard(dbInbound.port)">解除封禁</a-button>
+                                    </template>
+                                </template>
+                                <a-tag v-else color="default">OFF</a-tag>
+                            </template>
                         </a-table>
                     </a-card>
                 </transition>
@@ -174,6 +197,11 @@
         align: 'center',
         width: 80,
         scopedSlots: { customRender: 'expiryTime' },
+    }, {
+        title: "端口保护",
+        align: 'center',
+        width: 150,
+        scopedSlots: { customRender: 'portGuard' },
     }];
 
     const app = new Vue({
@@ -184,6 +212,7 @@
             spinning: false,
             inbounds: [],
             dbInbounds: [],
+            portGuardStatusByPort: {},
             searchKey: '',
         },
         methods: {
@@ -198,6 +227,7 @@
                     return;
                 }
                 this.setInbounds(msg.obj);
+                await this.getPortGuardStatus();
             },
             setInbounds(dbInbounds) {
                 this.inbounds.splice(0);
@@ -272,6 +302,10 @@
                     remark: dbInbound.remark,
                     enable: dbInbound.enable,
                     expiryTime: dbInbound.expiryTime,
+                    portGuardEnabled: dbInbound.portGuardEnabled,
+                    portGuardWindowSeconds: dbInbound._portGuardWindowSeconds,
+                    portGuardIpCount: dbInbound.portGuardIpCount,
+                    portGuardBanSeconds: dbInbound._portGuardBanSeconds,
 
                     ...inbound.toJson(),
                     settings: inbound.settings.toString(),
@@ -288,6 +322,10 @@
                     remark: dbInbound.remark,
                     enable: dbInbound.enable,
                     expiryTime: dbInbound.expiryTime,
+                    portGuardEnabled: dbInbound.portGuardEnabled,
+                    portGuardWindowSeconds: dbInbound._portGuardWindowSeconds,
+                    portGuardIpCount: dbInbound.portGuardIpCount,
+                    portGuardBanSeconds: dbInbound._portGuardBanSeconds,
 
                     ...inbound.toJson(),
                     settings: inbound.settings.toString(),
@@ -338,6 +376,67 @@
                 if (msg.success) {
                     await this.getDBInbounds();
                 }
+            },
+            async getPortGuardStatus() {
+                const msg = await HttpUtil.get('/api/port-guard/status');
+                if (!msg.success || !msg.obj || !Array.isArray(msg.obj.ports)) {
+                    this.portGuardStatusByPort = {};
+                    return;
+                }
+                const index = {};
+                msg.obj.ports.forEach(item => {
+                    index[item.port] = item;
+                });
+                this.portGuardStatusByPort = index;
+            },
+            async syncPortGuard() {
+                const msg = await HttpUtil.post('/api/port-guard/sync');
+                if (msg.success) {
+                    this.$message.success('端口保护同步完成');
+                    await this.getPortGuardStatus();
+                }
+            },
+            async showPortGuardLogs() {
+                const msg = await HttpUtil.get('/api/port-guard/logs?limit=100');
+                if (!msg.success) {
+                    return;
+                }
+                txtModal.show('端口保护日志', JSON.stringify(msg.obj || [], null, 2), 'port-guard.log');
+            },
+            unbanPortGuard(port) {
+                this.$confirm({
+                    title: '解除封禁',
+                    content: `确认解除端口 ${port} 的端口保护封禁吗？`,
+                    okText: '解除封禁',
+                    cancelText: '取消',
+                    onOk: async () => {
+                        const msg = await HttpUtil.post('/api/port-guard/unban', { port });
+                        if (msg.success) {
+                            this.$message.success('已解除封禁');
+                            await this.getPortGuardStatus();
+                        }
+                    },
+                });
+            },
+            portGuardTagColor(state) {
+                switch (state) {
+                    case 'ACTIVE':
+                        return 'green';
+                    case 'BANNED':
+                        return 'red';
+                    case 'WHITELISTED':
+                        return 'blue';
+                    case 'ERROR':
+                        return 'orange';
+                    default:
+                        return 'default';
+                }
+            },
+            formatRemaining(seconds) {
+                seconds = Math.max(0, parseInt(seconds || 0));
+                const m = Math.floor(seconds / 60);
+                const s = seconds % 60;
+                return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
             },
         },
         watch: {

@@ -54,6 +54,27 @@
     </a-form-item>
 </a-form>
 
+<a-divider orientation="left">Port Guard / 端口保护</a-divider>
+<a-alert type="info"
+         show-icon
+         message="窗口期 IP 限制"
+         description="统计指定时间窗口内访问该端口的唯一 IPv4 来源 IP。超过限制后临时封禁整个端口。"
+         style="margin-bottom: 12px;"></a-alert>
+<a-form layout="inline">
+    <a-form-item label="启用端口保护">
+        <a-switch v-model="dbInbound.portGuardEnabled"></a-switch>
+    </a-form-item>
+    <a-form-item label="窗口期秒数">
+        <a-input-number v-model="dbInbound._portGuardWindowSeconds" :min="1" :max="86400"></a-input-number>
+    </a-form-item>
+    <a-form-item label="窗口期唯一 IPv4 数">
+        <a-input-number v-model="dbInbound.portGuardIpCount" :min="0" :max="65535"></a-input-number>
+    </a-form-item>
+    <a-form-item label="超限封禁秒数">
+        <a-input-number v-model="dbInbound._portGuardBanSeconds" :min="1" :max="86400"></a-input-number>
+    </a-form-item>
+</a-form>
+
 <a-alert v-if="legacyProtocolWarning()"
          type="warning"
          show-icon

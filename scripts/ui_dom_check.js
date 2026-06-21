@@ -108,6 +108,7 @@ async function main() {
   const result = {
     socks: {},
     http: {},
+    portGuard: {},
     protocols: {},
   };
 
@@ -131,6 +132,17 @@ async function main() {
   await setHttpPasswordAuth(page, true);
   result.http.enableAuthShowsAccounts = await textVisible(page, '#inbound-modal', 'accounts');
   await page.screenshot({ path: path.join(outDir, 'http.png'), fullPage: true });
+  await closeModal(page);
+
+  await openAddModal(page);
+  const portGuardText = await anyModalText(page);
+  result.portGuard.hasSection = portGuardText.includes('Port Guard') && portGuardText.includes('端口保护');
+  result.portGuard.hasWindowLabel = portGuardText.includes('窗口期 IP 限制');
+  result.portGuard.hasIPv4LimitLabel = portGuardText.includes('窗口期唯一 IPv4 数');
+  result.portGuard.hasBanSecondsLabel = portGuardText.includes('超限封禁秒数');
+  result.portGuard.hasDescription = portGuardText.includes('统计指定时间窗口内访问该端口的唯一 IPv4 来源 IP');
+  result.portGuard.noForbiddenCopy = !/在线 IP|设备数|客户端数/.test(portGuardText);
+  await page.screenshot({ path: path.join(outDir, 'port-guard.png'), fullPage: true });
   await closeModal(page);
 
   const protocols = [

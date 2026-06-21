@@ -36,6 +36,13 @@ class DBInbound {
         this.remark = "";
         this.enable = true;
         this.expiryTime = 0;
+        this.portGuardEnabled = false;
+        this.portGuardWindowSeconds = 300;
+        this.portGuardIpCount = 0;
+        this.portGuardBanSeconds = 300;
+        this.portGuardBannedUntil = 0;
+        this.portGuardLastTriggerIp = "";
+        this.portGuardLastTriggerAt = 0;
 
         this.listen = "";
         this.port = 0;
@@ -104,6 +111,22 @@ class DBInbound {
         } else {
             this.expiryTime = t.valueOf();
         }
+    }
+
+    get _portGuardWindowSeconds() {
+        return this.portGuardWindowSeconds > 0 ? this.portGuardWindowSeconds : 300;
+    }
+
+    set _portGuardWindowSeconds(v) {
+        this.portGuardWindowSeconds = v && v > 0 ? parseInt(v) : 300;
+    }
+
+    get _portGuardBanSeconds() {
+        return this.portGuardBanSeconds > 0 ? this.portGuardBanSeconds : 300;
+    }
+
+    set _portGuardBanSeconds(v) {
+        this.portGuardBanSeconds = v && v > 0 ? parseInt(v) : 300;
     }
 
     get isExpiry() {
