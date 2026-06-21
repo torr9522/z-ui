@@ -1,0 +1,8 @@
+[Unit]
+Description=z-ui Port Guard nftables sync
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/zui-port-guard-sync

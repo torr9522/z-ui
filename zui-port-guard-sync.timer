@@ -1,0 +1,11 @@
+[Unit]
+Description=Run z-ui Port Guard sync periodically
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=30s
+Persistent=true
+Unit=zui-port-guard-sync.service
+
+[Install]
+WantedBy=timers.target

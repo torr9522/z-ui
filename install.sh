@@ -7,6 +7,9 @@ CONFIG_DIR="/etc/x-ui"
 DB_PATH="${CONFIG_DIR}/x-ui.db"
 SERVICE_PATH="/etc/systemd/system/x-ui.service"
 COMMAND_PATH="/usr/bin/x-ui"
+PORT_GUARD_SYNC_PATH="/usr/local/bin/zui-port-guard-sync"
+PORT_GUARD_SERVICE_PATH="/etc/systemd/system/zui-port-guard-sync.service"
+PORT_GUARD_TIMER_PATH="/etc/systemd/system/zui-port-guard-sync.timer"
 REPO="${XUI_REPO:-torr9522/z-ui}"
 XUI_RELEASE_VERSION="${1:-${XUI_VERSION:-}}"
 TMP_DIR=""
@@ -63,14 +66,14 @@ install_dependencies() {
     debian | ubuntu)
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y curl wget tar unzip ca-certificates systemd sqlite3
+      apt-get install -y curl wget tar unzip ca-certificates systemd sqlite3 nftables
       ;;
     rhel)
       local pm="yum"
       if command -v dnf >/dev/null 2>&1; then
         pm="dnf"
       fi
-      "${pm}" install -y curl wget tar unzip ca-certificates systemd sqlite
+      "${pm}" install -y curl wget tar unzip ca-certificates systemd sqlite nftables
       ;;
     *)
       fail "unsupported package manager for ${OS_FAMILY}"
@@ -197,6 +200,15 @@ install_files() {
 
   install -m 0755 "${INSTALL_DIR}/x-ui.sh" "${COMMAND_PATH}"
   install -m 0644 "${INSTALL_DIR}/x-ui.service" "${SERVICE_PATH}"
+  if [[ -f "${INSTALL_DIR}/scripts/zui-port-guard-sync" ]]; then
+    install -m 0755 "${INSTALL_DIR}/scripts/zui-port-guard-sync" "${PORT_GUARD_SYNC_PATH}"
+  fi
+  if [[ -f "${INSTALL_DIR}/zui-port-guard-sync.service" ]]; then
+    install -m 0644 "${INSTALL_DIR}/zui-port-guard-sync.service" "${PORT_GUARD_SERVICE_PATH}"
+  fi
+  if [[ -f "${INSTALL_DIR}/zui-port-guard-sync.timer" ]]; then
+    install -m 0644 "${INSTALL_DIR}/zui-port-guard-sync.timer" "${PORT_GUARD_TIMER_PATH}"
+  fi
 }
 
 initialize_panel() {
@@ -228,6 +240,15 @@ start_service() {
   done
   journalctl -u x-ui -n 50 --no-pager || true
   fail "x-ui service started but panel did not become reachable"
+}
+
+start_port_guard() {
+  mkdir -p /var/lib/z-ui/port-guard /var/log/z-ui
+  if [[ -x "${PORT_GUARD_SYNC_PATH}" && -f "${PORT_GUARD_SERVICE_PATH}" && -f "${PORT_GUARD_TIMER_PATH}" ]]; then
+    systemctl daemon-reload
+    systemctl enable --now zui-port-guard-sync.timer >/dev/null 2>&1 || true
+    systemctl start zui-port-guard-sync.service >/dev/null 2>&1 || true
+  fi
 }
 
 server_ip() {
@@ -285,6 +306,7 @@ main() {
   install_files "${package_path}" "${TMP_DIR}"
   initialize_panel
   start_service
+  start_port_guard
   print_success
 }
 

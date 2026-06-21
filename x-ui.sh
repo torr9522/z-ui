@@ -13,6 +13,11 @@ BRANCH="${XUI_BRANCH:-z-ui}"
 DEFAULT_ACME_DOMAIN="cshtps.527270.xyz"
 RENEW_SERVICE="/etc/systemd/system/x-ui-cert-renew.service"
 RENEW_TIMER="/etc/systemd/system/x-ui-cert-renew.timer"
+PORT_GUARD_SYNC="/usr/local/bin/zui-port-guard-sync"
+PORT_GUARD_SERVICE="/etc/systemd/system/zui-port-guard-sync.service"
+PORT_GUARD_TIMER="/etc/systemd/system/zui-port-guard-sync.timer"
+PORT_GUARD_TABLE="zui_port_guard"
+PORT_GUARD_LOG="/var/log/z-ui/port-guard.log"
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -968,6 +973,68 @@ EOF
   done
 }
 
+cmd_port_guard_status() {
+  if command -v systemctl >/dev/null 2>&1; then
+    local timer_state service_state
+    timer_state="$(systemctl is-active zui-port-guard-sync.timer 2>/dev/null || true)"
+    service_state="$(systemctl is-active zui-port-guard-sync.service 2>/dev/null || true)"
+    printf 'Timer: %s\n' "${timer_state:-unknown}"
+    printf 'Service: %s\n' "${service_state:-unknown}"
+  fi
+  if command -v nft >/dev/null 2>&1; then
+    nft list table inet "${PORT_GUARD_TABLE}" 2>/dev/null || printf 'nft table not found: inet %s\n' "${PORT_GUARD_TABLE}"
+  else
+    printf 'nft command not found\n'
+  fi
+}
+
+cmd_port_guard_sync() {
+  [[ -x "${PORT_GUARD_SYNC}" ]] || fail "Port Guard sync script not found: ${PORT_GUARD_SYNC}"
+  "${PORT_GUARD_SYNC}"
+}
+
+cmd_port_guard_unban() {
+  local port="${1:-}"
+  [[ "${port}" =~ ^[0-9]+$ ]] || fail "usage: x-ui port-guard unban <port>"
+  if command -v nft >/dev/null 2>&1; then
+    nft delete element inet "${PORT_GUARD_TABLE}" blocked_ports "{ ${port} }" 2>/dev/null || true
+    nft flush set inet "${PORT_GUARD_TABLE}" "pg4_${port}" 2>/dev/null || true
+  fi
+  if [[ -f "${DB_PATH}" ]]; then
+    sqlite3 "${DB_PATH}" "update inbounds set port_guard_banned_until=0, port_guard_last_trigger_ip='', port_guard_last_trigger_at=0 where port=${port};" >/dev/null 2>&1 || true
+  fi
+  mkdir -p "$(dirname "${PORT_GUARD_LOG}")"
+  python3 - "${port}" >>"${PORT_GUARD_LOG}" <<'PY'
+import json, sys, time
+print(json.dumps({
+    "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    "event": "manual_unban",
+    "port": int(sys.argv[1]),
+    "operator": "x-ui.sh",
+}, separators=(",", ":")))
+PY
+  printf 'Port Guard unbanned port %s\n' "${port}"
+}
+
+cmd_port_guard_logs() {
+  if [[ -f "${PORT_GUARD_LOG}" ]]; then
+    tail -n "${1:-100}" "${PORT_GUARD_LOG}"
+  else
+    printf 'Port Guard log not found: %s\n' "${PORT_GUARD_LOG}"
+  fi
+}
+
+cmd_port_guard() {
+  local subcmd="${1:-status}"
+  case "${subcmd}" in
+    status) cmd_port_guard_status ;;
+    sync) cmd_port_guard_sync ;;
+    unban) shift; cmd_port_guard_unban "$@" ;;
+    logs) shift; cmd_port_guard_logs "$@" ;;
+    *) fail "usage: x-ui port-guard {status|sync|unban <port>|logs}" ;;
+  esac
+}
+
 cmd_update() {
   require_root
   bash <(curl -fsSL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh")
@@ -983,8 +1050,16 @@ cmd_uninstall() {
   fi
   systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
   systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  systemctl stop zui-port-guard-sync.timer >/dev/null 2>&1 || true
+  systemctl disable zui-port-guard-sync.timer >/dev/null 2>&1 || true
+  systemctl stop zui-port-guard-sync.service >/dev/null 2>&1 || true
   rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
+  rm -f "${PORT_GUARD_TIMER}" "${PORT_GUARD_SERVICE}" "${PORT_GUARD_SYNC}"
   systemctl daemon-reload
+  if command -v nft >/dev/null 2>&1; then
+    nft delete table inet "${PORT_GUARD_TABLE}" >/dev/null 2>&1 || true
+  fi
+  rm -rf /var/lib/z-ui/port-guard
   rm -rf "${INSTALL_DIR}"
   rm -f "/usr/bin/x-ui"
   printf 'x-ui uninstalled. Database preserved at %s\n' "${DB_PATH}"
@@ -1008,6 +1083,14 @@ x-ui command usage:
   x-ui cert renew   Renew certificates expiring within 30 days
   x-ui cert autorenew
                     Toggle certificate auto renewal
+  x-ui port-guard status
+                    Show Port Guard nftables state
+  x-ui port-guard sync
+                    Sync Port Guard rules now
+  x-ui port-guard unban <port>
+                    Remove a Port Guard port ban
+  x-ui port-guard logs
+                    Show Port Guard logs
   x-ui update       Reinstall from latest release
   x-ui uninstall    Uninstall service and binaries, keep database
 EOF
@@ -1028,6 +1111,7 @@ main() {
     reset-port) cmd_reset_port ;;
     info) cmd_info ;;
     cert) shift; cmd_cert_manager "$@" ;;
+    port-guard) shift; cmd_port_guard "$@" ;;
     update) cmd_update ;;
     uninstall) cmd_uninstall ;;
     "" | help | -h | --help) usage ;;
