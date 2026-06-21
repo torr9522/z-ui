@@ -25,6 +25,7 @@ func runMigrations(dbPath string) error {
 		{version: "202606120001_password_hash", run: migratePasswordHash},
 		{version: "202606120002_inbound_clients", run: migrateInboundClients},
 		{version: "202606120003_vless_decryption_none", run: migrateVLESSDecryption},
+		{version: "202606210001_port_guard", run: migratePortGuard},
 	}
 
 	needed, err := needsMigration(migrations)
@@ -195,6 +196,70 @@ func migrateVLESSDecryption(tx *gorm.DB) error {
 			return err
 		}
 		if err := tx.Model(&model.Inbound{}).Where("id = ?", inbound.Id).Update("settings", string(data)).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migratePortGuard(tx *gorm.DB) error {
+	columns := []struct {
+		name       string
+		definition string
+	}{
+		{name: "port_guard_enabled", definition: "BOOLEAN DEFAULT false"},
+		{name: "port_guard_window_seconds", definition: "INTEGER DEFAULT 300"},
+		{name: "port_guard_ip_count", definition: "INTEGER DEFAULT 0"},
+		{name: "port_guard_ban_seconds", definition: "INTEGER DEFAULT 300"},
+		{name: "port_guard_banned_until", definition: "INTEGER DEFAULT 0"},
+		{name: "port_guard_last_trigger_ip", definition: "TEXT DEFAULT ''"},
+		{name: "port_guard_last_trigger_at", definition: "INTEGER DEFAULT 0"},
+	}
+	for _, column := range columns {
+		hasColumn, err := hasTableColumn(tx, "inbounds", column.name)
+		if err != nil {
+			return err
+		}
+		if hasColumn {
+			continue
+		}
+		if err := tx.Exec(fmt.Sprintf("ALTER TABLE inbounds ADD COLUMN %s %s", column.name, column.definition)).Error; err != nil {
+			if !isDuplicateColumnError(err) {
+				return err
+			}
+		}
+	}
+
+	updates := []string{
+		"UPDATE inbounds SET port_guard_enabled = false WHERE port_guard_enabled IS NULL",
+		"UPDATE inbounds SET port_guard_window_seconds = 300 WHERE port_guard_window_seconds IS NULL OR port_guard_window_seconds <= 0",
+		"UPDATE inbounds SET port_guard_ip_count = 0 WHERE port_guard_ip_count IS NULL OR port_guard_ip_count < 0",
+		"UPDATE inbounds SET port_guard_ban_seconds = 300 WHERE port_guard_ban_seconds IS NULL OR port_guard_ban_seconds <= 0",
+		"UPDATE inbounds SET port_guard_banned_until = 0 WHERE port_guard_banned_until IS NULL OR port_guard_banned_until < 0",
+		"UPDATE inbounds SET port_guard_last_trigger_ip = '' WHERE port_guard_last_trigger_ip IS NULL",
+		"UPDATE inbounds SET port_guard_last_trigger_at = 0 WHERE port_guard_last_trigger_at IS NULL OR port_guard_last_trigger_at < 0",
+	}
+	for _, stmt := range updates {
+		if err := tx.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+
+	settings := map[string]string{
+		"portGuardEnabled":             "true",
+		"portGuardWhitelistPorts":      "[]",
+		"portGuardSyncIntervalSeconds": "30",
+		"portGuardLogRetentionDays":    "7",
+	}
+	for key, value := range settings {
+		var count int64
+		if err := tx.Model(&model.Setting{}).Where("key = ?", key).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		if err := tx.Create(&model.Setting{Key: key, Value: value}).Error; err != nil {
 			return err
 		}
 	}

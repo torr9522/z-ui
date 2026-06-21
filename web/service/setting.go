@@ -21,16 +21,20 @@ import (
 var xrayTemplateConfig string
 
 var defaultValueMap = map[string]string{
-	"xrayTemplateConfig": xrayTemplateConfig,
-	"webListen":          "",
-	"webPort":            "54321",
-	"webCertFile":        "",
-	"webKeyFile":         "",
-	"secret":             random.Seq(32),
-	"webBasePath":        "/",
-	"timeLocation":       "Asia/Shanghai",
-	"runtimeDirty":       "false",
-	"runtimeLastError":   "",
+	"xrayTemplateConfig":           xrayTemplateConfig,
+	"webListen":                    "",
+	"webPort":                      "54321",
+	"webCertFile":                  "",
+	"webKeyFile":                   "",
+	"secret":                       random.Seq(32),
+	"webBasePath":                  "/",
+	"timeLocation":                 "Asia/Shanghai",
+	"runtimeDirty":                 "false",
+	"runtimeLastError":             "",
+	"portGuardEnabled":             "true",
+	"portGuardWhitelistPorts":      "[]",
+	"portGuardSyncIntervalSeconds": "30",
+	"portGuardLogRetentionDays":    "7",
 }
 
 type SettingService struct {

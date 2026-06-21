@@ -57,6 +57,7 @@ func (s *InboundService) checkPortExist(port int, ignoreId int) (bool, error) {
 }
 
 func (s *InboundService) AddInbound(inbound *model.Inbound) error {
+	normalizePortGuard(inbound)
 	exist, err := s.checkPortExist(inbound.Port, 0)
 	if err != nil {
 		return err
@@ -72,6 +73,7 @@ func (s *InboundService) AddInbound(inbound *model.Inbound) error {
 
 func (s *InboundService) AddInbounds(inbounds []*model.Inbound) error {
 	for _, inbound := range inbounds {
+		normalizePortGuard(inbound)
 		exist, err := s.checkPortExist(inbound.Port, 0)
 		if err != nil {
 			return err
@@ -125,6 +127,7 @@ func (s *InboundService) GetInbound(id int) (*model.Inbound, error) {
 }
 
 func (s *InboundService) UpdateInbound(inbound *model.Inbound) error {
+	normalizePortGuard(inbound)
 	exist, err := s.checkPortExist(inbound.Port, inbound.Id)
 	if err != nil {
 		return err
@@ -143,6 +146,10 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) error {
 	oldInbound.Remark = inbound.Remark
 	oldInbound.Enable = inbound.Enable
 	oldInbound.ExpiryTime = inbound.ExpiryTime
+	oldInbound.PortGuardEnabled = inbound.PortGuardEnabled
+	oldInbound.PortGuardWindowSeconds = inbound.PortGuardWindowSeconds
+	oldInbound.PortGuardIPCount = inbound.PortGuardIPCount
+	oldInbound.PortGuardBanSeconds = inbound.PortGuardBanSeconds
 	oldInbound.Listen = inbound.Listen
 	oldInbound.Port = inbound.Port
 	oldInbound.Protocol = inbound.Protocol
@@ -155,6 +162,33 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) error {
 	return db.Transaction(func(tx *gorm.DB) error {
 		return s.saveInboundWithClients(tx, oldInbound)
 	})
+}
+
+func normalizePortGuard(inbound *model.Inbound) {
+	if inbound.PortGuardWindowSeconds <= 0 {
+		inbound.PortGuardWindowSeconds = 300
+	}
+	if inbound.PortGuardWindowSeconds > 86400 {
+		inbound.PortGuardWindowSeconds = 86400
+	}
+	if inbound.PortGuardIPCount < 0 {
+		inbound.PortGuardIPCount = 0
+	}
+	if inbound.PortGuardIPCount > 65535 {
+		inbound.PortGuardIPCount = 65535
+	}
+	if inbound.PortGuardBanSeconds <= 0 {
+		inbound.PortGuardBanSeconds = 300
+	}
+	if inbound.PortGuardBanSeconds > 86400 {
+		inbound.PortGuardBanSeconds = 86400
+	}
+	if !inbound.PortGuardEnabled || inbound.PortGuardIPCount == 0 {
+		inbound.PortGuardEnabled = false
+		inbound.PortGuardBannedUntil = 0
+		inbound.PortGuardLastTriggerIP = ""
+		inbound.PortGuardLastTriggerAt = 0
+	}
 }
 
 func (s *InboundService) AddTraffic(traffics []*xray.Traffic) (err error) {

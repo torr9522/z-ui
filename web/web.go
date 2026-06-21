@@ -80,11 +80,12 @@ type Server struct {
 	httpServer *http.Server
 	listener   net.Listener
 
-	index  *controller.IndexController
-	server *controller.ServerController
-	xui    *controller.XUIController
-	api    *controller.ProtocolController
-	cert   *controller.CertificateController
+	index     *controller.IndexController
+	server    *controller.ServerController
+	xui       *controller.XUIController
+	api       *controller.ProtocolController
+	cert      *controller.CertificateController
+	portGuard *controller.PortGuardController
 
 	xrayService    service.XrayService
 	settingService service.SettingService
@@ -210,6 +211,7 @@ func (s *Server) initRouter(sessionOptions sessions.Options) (*gin.Engine, error
 	s.xui = controller.NewXUIController(g)
 	s.api = controller.NewProtocolController(g)
 	s.cert = controller.NewCertificateController(g)
+	s.portGuard = controller.NewPortGuardController(g)
 
 	return engine, nil
 }

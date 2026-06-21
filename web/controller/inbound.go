@@ -16,6 +16,7 @@ type InboundController struct {
 
 	inboundService service.InboundService
 	xrayService    service.XrayService
+	portGuard      service.PortGuardService
 }
 
 func NewInboundController(g *gin.RouterGroup) *InboundController {
@@ -72,6 +73,7 @@ func (a *InboundController) addInbound(c *gin.Context) {
 	jsonMsg(c, "添加", err)
 	if err == nil {
 		a.xrayService.SetToNeedRestart()
+		a.portGuard.SyncNow()
 	}
 }
 
@@ -85,6 +87,7 @@ func (a *InboundController) delInbound(c *gin.Context) {
 	jsonMsg(c, "删除", err)
 	if err == nil {
 		a.xrayService.SetToNeedRestart()
+		a.portGuard.SyncNow()
 	}
 }
 
@@ -106,5 +109,6 @@ func (a *InboundController) updateInbound(c *gin.Context) {
 	jsonMsg(c, "修改", err)
 	if err == nil {
 		a.xrayService.SetToNeedRestart()
+		a.portGuard.SyncNow()
 	}
 }

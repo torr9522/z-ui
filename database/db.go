@@ -33,6 +33,28 @@ func (legacyUser) TableName() string {
 	return "users"
 }
 
+type legacyInbound struct {
+	Id             int `gorm:"primaryKey;autoIncrement"`
+	UserId         int
+	Up             int64
+	Down           int64
+	Total          int64
+	Remark         string
+	Enable         bool
+	ExpiryTime     int64
+	Listen         string
+	Port           int `gorm:"unique"`
+	Protocol       model.Protocol
+	Settings       string
+	StreamSettings string
+	Tag            string `gorm:"unique"`
+	Sniffing       string
+}
+
+func (legacyInbound) TableName() string {
+	return "inbounds"
+}
+
 func initUser() error {
 	err := db.AutoMigrate(&legacyUser{})
 	if err != nil {
@@ -42,7 +64,7 @@ func initUser() error {
 }
 
 func initInbound() error {
-	return db.AutoMigrate(&model.Inbound{})
+	return db.AutoMigrate(&legacyInbound{})
 }
 
 func initSetting() error {

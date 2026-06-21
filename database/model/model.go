@@ -38,6 +38,14 @@ type Inbound struct {
 	Enable     bool   `json:"enable" form:"enable"`
 	ExpiryTime int64  `json:"expiryTime" form:"expiryTime"`
 
+	PortGuardEnabled       bool   `json:"portGuardEnabled" form:"portGuardEnabled" gorm:"column:port_guard_enabled;default:false"`
+	PortGuardWindowSeconds int    `json:"portGuardWindowSeconds" form:"portGuardWindowSeconds" gorm:"column:port_guard_window_seconds;default:300"`
+	PortGuardIPCount       int    `json:"portGuardIpCount" form:"portGuardIpCount" gorm:"column:port_guard_ip_count;default:0"`
+	PortGuardBanSeconds    int    `json:"portGuardBanSeconds" form:"portGuardBanSeconds" gorm:"column:port_guard_ban_seconds;default:300"`
+	PortGuardBannedUntil   int64  `json:"portGuardBannedUntil" form:"portGuardBannedUntil" gorm:"column:port_guard_banned_until;default:0"`
+	PortGuardLastTriggerIP string `json:"portGuardLastTriggerIp" form:"portGuardLastTriggerIp" gorm:"column:port_guard_last_trigger_ip;default:''"`
+	PortGuardLastTriggerAt int64  `json:"portGuardLastTriggerAt" form:"portGuardLastTriggerAt" gorm:"column:port_guard_last_trigger_at;default:0"`
+
 	// config part
 	Listen         string   `json:"listen" form:"listen"`
 	Port           int      `json:"port" form:"port" gorm:"unique"`
