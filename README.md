@@ -48,6 +48,16 @@ bash <(curl -Ls https://raw.githubusercontent.com/torr9522/z-ui/z-ui/install.sh)
 
 ## 管理命令
 
+执行 `x-ui` 会进入中文交互菜单：
+
+```bash
+x-ui
+```
+
+菜单提供服务管理、面板信息、重置账号密码、重置端口、证书管理、端口保护、更新和卸载入口。
+
+高级用户和自动化脚本仍可继续使用命令模式：
+
 ```bash
 x-ui start
 x-ui stop
@@ -70,6 +80,15 @@ x-ui cert
 x-ui cert status
 x-ui cert renew
 x-ui cert autorenew
+```
+
+端口保护命令：
+
+```bash
+x-ui port-guard status
+x-ui port-guard sync
+x-ui port-guard unban <port>
+x-ui port-guard logs
 ```
 
 `x-ui uninstall` 需要输入 `UNINSTALL` 才会继续，避免误删服务。

@@ -472,6 +472,22 @@ service_status() {
   systemctl is-active "${SERVICE_NAME}" 2>/dev/null || printf 'unknown\n'
 }
 
+service_status_text() {
+  case "$1" in
+    active) printf '运行中' ;;
+    inactive) printf '未运行' ;;
+    activating) printf '启动中' ;;
+    failed) printf '失败' ;;
+    unknown) printf '未知' ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+pause_return() {
+  local _
+  read -r -p "按回车返回" _ || true
+}
+
 cmd_start() {
   require_installed
   systemctl start "${SERVICE_NAME}"
@@ -570,6 +586,26 @@ Config:
 
 Service:
  systemctl status x-ui
+EOF
+}
+
+cmd_panel_info_cn() {
+  require_installed
+  local scheme port username status version commit
+  scheme="$(panel_scheme)"
+  port="$(current_port)"
+  username="$(current_username)"
+  status="$(service_status)"
+  version="$(current_version)"
+  commit="$(current_commit)"
+  cat <<EOF
+面板地址：$(panel_url "${port}")
+当前协议：${scheme^^}
+当前端口：${port}
+当前用户名：${username}
+服务状态：$(service_status_text "${status}")
+当前版本：${version}
+当前 Commit：${commit}
 EOF
 }
 
@@ -1049,19 +1085,156 @@ cmd_port_guard() {
   esac
 }
 
+menu_service() {
+  while true; do
+    cat <<'EOF'
+========================
+服务管理
+====
+
+1. 启动服务
+2. 停止服务
+3. 重启服务
+4. 查看状态
+5. 查看日志
+6. 开机启动
+7. 取消开机启动
+8. 返回
+EOF
+    local choice
+    read -r -p "请输入选择：" choice || return 0
+    case "${choice}" in
+      "") continue ;;
+      1) cmd_start; pause_return ;;
+      2) cmd_stop; pause_return ;;
+      3) cmd_restart; pause_return ;;
+      4) cmd_status; pause_return ;;
+      5) cmd_log ;;
+      6) cmd_enable; pause_return ;;
+      7) cmd_disable; pause_return ;;
+      8|0) return 0 ;;
+      *) printf '无效选择，请重新输入。\n' ;;
+    esac
+  done
+}
+
+menu_port_guard() {
+  while true; do
+    cat <<'EOF'
+========================
+端口保护
+====
+
+1. 查看状态
+2. 立即同步
+3. 查看日志
+4. 手动解除封禁
+5. 返回
+EOF
+    local choice port
+    read -r -p "请输入选择：" choice || return 0
+    case "${choice}" in
+      "") continue ;;
+      1) cmd_port_guard_status; pause_return ;;
+      2) cmd_port_guard_sync; pause_return ;;
+      3) cmd_port_guard_logs; pause_return ;;
+      4)
+        read -r -p "请输入要解除封禁的端口：" port || port=""
+        if [[ -z "${port}" ]]; then
+          printf '端口不能为空。\n'
+        else
+          cmd_port_guard_unban "${port}"
+        fi
+        pause_return
+        ;;
+      5|0) return 0 ;;
+      *) printf '无效选择，请重新输入。\n' ;;
+    esac
+  done
+}
+
+menu_update() {
+  cat <<'EOF'
+警告：
+更新功能可能覆盖当前安装内容。
+
+确认继续？
+请输入 YES 继续：
+EOF
+  local confirm
+  read -r confirm || confirm=""
+  if [[ "${confirm}" == "YES" ]]; then
+    cmd_update
+  else
+    printf '已取消更新。\n'
+    pause_return
+  fi
+}
+
+menu_uninstall() {
+  cat <<'EOF'
+警告：
+将卸载 z-ui 服务和程序文件。
+
+数据库与证书默认保留。
+
+请输入：
+UNINSTALL
+继续：
+EOF
+  local confirm
+  read -r confirm || confirm=""
+  if [[ "${confirm}" == "UNINSTALL" ]]; then
+    cmd_uninstall_confirmed
+  else
+    printf '已取消卸载。\n'
+    pause_return
+  fi
+}
+
+menu_main() {
+  trap 'printf "\n已退出菜单。\n"; exit 130' INT
+  while true; do
+    cat <<'EOF'
+========================
+z-ui 管理菜单
+=========
+
+1. 服务管理
+2. 面板信息
+3. 重置账号密码
+4. 重置面板端口
+5. 证书管理
+6. 端口保护
+7. 更新系统
+8. 卸载系统
+9. 退出
+EOF
+    local choice
+    read -r -p "请输入选择：" choice || return 0
+    case "${choice}" in
+      "") continue ;;
+      1) menu_service ;;
+      2) cmd_panel_info_cn; pause_return ;;
+      3) cmd_reset_user; pause_return ;;
+      4) cmd_reset_port; pause_return ;;
+      5) cmd_cert_manager ;;
+      6) menu_port_guard ;;
+      7) menu_update ;;
+      8) menu_uninstall ;;
+      9|0|q|Q) return 0 ;;
+      *) printf '无效选择，请重新输入。\n' ;;
+    esac
+  done
+}
+
 cmd_update() {
   require_root
   bash <(curl -fsSL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh")
 }
 
-cmd_uninstall() {
+cmd_uninstall_confirmed() {
   require_root
-  local confirm
-  read -r -p "Type UNINSTALL to confirm uninstall x-ui: " confirm || confirm=""
-  if [[ "${confirm}" != "UNINSTALL" ]]; then
-    printf 'Uninstall cancelled\n'
-    return 0
-  fi
   systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
   systemctl disable "${SERVICE_NAME}" >/dev/null 2>&1 || true
   systemctl stop zui-port-guard-sync.timer >/dev/null 2>&1 || true
@@ -1076,27 +1249,39 @@ cmd_uninstall() {
   rm -rf /var/lib/z-ui/port-guard
   rm -rf "${INSTALL_DIR}"
   rm -f "/usr/bin/x-ui"
-  printf 'x-ui uninstalled. Database preserved at %s\n' "${DB_PATH}"
+  printf 'z-ui 已卸载。数据库保留在：%s\n' "${DB_PATH}"
+}
+
+cmd_uninstall() {
+  require_root
+  local confirm
+  read -r -p "请输入 UNINSTALL 确认卸载 z-ui：" confirm || confirm=""
+  if [[ "${confirm}" != "UNINSTALL" ]]; then
+    printf '已取消卸载。\n'
+    return 0
+  fi
+  cmd_uninstall_confirmed
 }
 
 usage() {
   cat <<'EOF'
-x-ui command usage:
-  x-ui start        Start x-ui
-  x-ui stop         Stop x-ui
-  x-ui restart      Restart x-ui
-  x-ui status       Show service status
-  x-ui enable       Enable service at boot
-  x-ui disable      Disable service at boot
-  x-ui log          Follow service logs
-  x-ui reset-user   Generate a new random username and password
-  x-ui reset-port   Generate a new random panel port
-  x-ui info         Show panel URL and username
-  x-ui cert         Certificate manager
-  x-ui cert status  Show certificate renewal status
-  x-ui cert renew   Renew certificates expiring within 30 days
+x-ui 命令用法：
+  x-ui              进入中文交互菜单
+  x-ui start        启动服务
+  x-ui stop         停止服务
+  x-ui restart      重启服务
+  x-ui status       查看状态
+  x-ui enable       开机启动
+  x-ui disable      取消开机启动
+  x-ui log          查看日志
+  x-ui reset-user   重置账号密码
+  x-ui reset-port   重置面板端口
+  x-ui info         查看面板地址和用户名
+  x-ui cert         证书管理
+  x-ui cert status  查看证书续期状态
+  x-ui cert renew   续期 30 天内到期的证书
   x-ui cert autorenew
-                    Toggle certificate auto renewal
+                    切换证书自动续期
   x-ui port-guard status
                     显示端口保护 nftables 状态
   x-ui port-guard sync
@@ -1105,8 +1290,8 @@ x-ui command usage:
                     解除指定端口的端口保护封禁
   x-ui port-guard logs
                     显示端口保护日志
-  x-ui update       Reinstall from latest release
-  x-ui uninstall    Uninstall service and binaries, keep database
+  x-ui update       更新系统
+  x-ui uninstall    卸载服务和程序文件，保留数据库
 EOF
 }
 
@@ -1128,7 +1313,8 @@ main() {
     port-guard) shift; cmd_port_guard "$@" ;;
     update) cmd_update ;;
     uninstall) cmd_uninstall ;;
-    "" | help | -h | --help) usage ;;
+    "") menu_main ;;
+    help | -h | --help) usage ;;
     *) usage; fail "unknown command: ${cmd}" ;;
   esac
 }

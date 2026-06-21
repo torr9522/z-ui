@@ -46,6 +46,16 @@ The installer generates a random username, strong random password, and random pa
 
 ## Management Commands
 
+Running `x-ui` opens the Chinese interactive menu:
+
+```bash
+x-ui
+```
+
+The menu provides service management, panel information, credential reset, port reset, certificate management, Port Guard, update, and uninstall entries.
+
+Advanced users and automation can still use command mode:
+
 ```bash
 x-ui start
 x-ui stop
@@ -68,6 +78,15 @@ x-ui cert
 x-ui cert status
 x-ui cert renew
 x-ui cert autorenew
+```
+
+Port Guard commands:
+
+```bash
+x-ui port-guard status
+x-ui port-guard sync
+x-ui port-guard unban <port>
+x-ui port-guard logs
 ```
 
 `x-ui uninstall` requires typing `UNINSTALL` before it proceeds.
