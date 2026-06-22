@@ -150,7 +150,7 @@ func parseVersionMetadata(raw string) embeddedVersionMetadata {
 	if raw == "" {
 		return embeddedVersionMetadata{}
 	}
-	if !strings.Contains(raw, "=") {
+	if !strings.Contains(raw, "=") && !strings.Contains(raw, ":") {
 		return embeddedVersionMetadata{Version: raw}
 	}
 
@@ -160,12 +160,26 @@ func parseVersionMetadata(raw string) embeddedVersionMetadata {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
+		var key string
+		var value string
+		switch {
+		case strings.Contains(line, "="):
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key = strings.TrimSpace(parts[0])
+			value = strings.TrimSpace(parts[1])
+		case strings.Contains(line, ":"):
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key = strings.TrimSpace(parts[0])
+			value = strings.TrimSpace(parts[1])
+		default:
 			continue
 		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
 		switch key {
 		case "version":
 			metadata.Version = value

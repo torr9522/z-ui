@@ -228,14 +228,33 @@ https://github.com/torr9522/z-ui/releases/download/v1.0.1/z-ui-linux-<arch>.tar.
 - `v1.0.1` release asset 必须由当前 `z-ui` HEAD 构建。
 - `z-ui-linux-amd64.tar.gz` 必须包含完整仓库源码审计文件和当前构建产物。
 
-## v1.0.1 发布一致性
+## 发布模型约束
 
-当前发布要求：
+当前采用单向可追溯模型：
 
-- Git tag、GitHub Release、`install.sh` 下载地址必须一致。
-- release 包中的 `config/version` 必须携带结构化元信息。
-- `x-ui info` 显示的 Version / Commit / BuildTime 必须与 release 构建结果一致。
-- raw `install.sh` 安装结果必须不再落到旧 release 资产。
+- Git commit 是源码事实来源。
+- Git tag 只标记 commit。
+- GitHub Release 是从 commit/tag 构建出的产物。
+- `install.sh` 只负责下载 release asset。
+- 服务器安装结果只记录已安装包的 commit。
+
+允许存在：
+
+- 本地 commit 领先于当前 release commit。
+- 多台服务器安装不同 release commit。
+- `install.sh` 指向最新稳定 release，而不是本地开发提交。
+
+禁止错误假设：
+
+- 不再要求 tag / release / `install.sh` / `config/version` 反向回写成同一提交。
+- 不允许用 release 反推 Git 历史。
+- 不允许安装状态反向要求本地源码一致。
+
+当前验证工具：
+
+- `scripts/verify_install.sh`
+- 输出 installed commit / release commit / local git commit
+- 状态分为 `consistent` 或 `drift detected`
 
 ## nftables Bootstrap Engine 状态
 
@@ -332,11 +351,11 @@ Build Metadata 状态：
 
 最近新增阶段：
 
-- `PROJECT_HISTORY/019_INSTALLER_UI_REFRESH.md`
+- `PROJECT_HISTORY/021_RELEASE_MODEL_CORRECTION.md`
 
 下一个重要阶段必须创建：
 
-- `PROJECT_HISTORY/020_<FEATURE>.md`
+- `PROJECT_HISTORY/022_<FEATURE>.md`
 
 不要覆盖：
 
@@ -354,6 +373,7 @@ Build Metadata 状态：
 - `PROJECT_HISTORY/017_RELEASE_INSTALL_CHAIN_FIX.md`
 - `PROJECT_HISTORY/018_NFT_BOOTSTRAP_ENGINE.md`
 - `PROJECT_HISTORY/019_INSTALLER_UI_REFRESH.md`
+- `PROJECT_HISTORY/020_RELEASE_V1_0_1.md`
 
 只更新：
 

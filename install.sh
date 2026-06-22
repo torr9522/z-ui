@@ -371,9 +371,17 @@ server_ip() {
 }
 
 print_success_box() {
-  local ip panel_url
+  local ip panel_url version commit branch build_time
   ip="$(server_ip)"
   panel_url="http://${ip}:${PORT}"
+  version="$("${INSTALL_DIR}/x-ui" version 2>/dev/null | sed -n 's/^Version: //p' | head -n1)"
+  commit="$("${INSTALL_DIR}/x-ui" version 2>/dev/null | sed -n 's/^Commit: //p' | head -n1)"
+  branch="$("${INSTALL_DIR}/x-ui" version 2>/dev/null | sed -n 's/^Branch: //p' | head -n1)"
+  build_time="$("${INSTALL_DIR}/x-ui" version 2>/dev/null | sed -n 's/^BuildTime: //p' | head -n1)"
+  version="${version:-未知}"
+  commit="${commit:-未知}"
+  branch="${branch:-未知}"
+  build_time="${build_time:-未知}"
   cat <<'EOF'
 【STEP 5】安装完成
 ╔════════════════════════════════════════════════════════════╗
@@ -384,9 +392,13 @@ EOF
   box_row "Username" "${USERNAME}"
   box_row "Password" "${PASSWORD}"
   box_row "Port" "${PORT}"
+  box_row "Version" "${version}"
+  box_row "Commit" "${commit}"
   cat <<'EOF'
 ╠════════════════════════════════════════════════════════════╣
 EOF
+  box_row "Branch" "${branch}"
+  box_row "BuildTime" "${build_time}"
   box_row "Command" "x-ui"
   box_row "Config" "/etc/x-ui/x-ui.db"
   cat <<'EOF'
