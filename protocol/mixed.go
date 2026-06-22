@@ -22,8 +22,7 @@ func (m *mixedModule) FormSchema() FormSchema {
 }
 
 func (m *mixedModule) Validate(inbound *model.Inbound) error {
-	clearTransportState(inbound)
-	_, err := decodeObject(inbound.Settings)
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
 	return err
 }
 

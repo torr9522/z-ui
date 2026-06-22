@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"errors"
 	"x-ui/database/model"
 	"x-ui/xray"
 )
@@ -35,16 +34,7 @@ func (m *shadowsocksModule) FormSchema() FormSchema {
 }
 
 func (m *shadowsocksModule) Validate(inbound *model.Inbound) error {
-	settings, err := decodeObject(inbound.Settings)
-	if err != nil {
-		return err
-	}
-	if stringValue(settings["password"]) == "" {
-		if clients, ok := settings["clients"]; !ok || clients == nil {
-			return errors.New("shadowsocks requires password or clients")
-		}
-	}
-	_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
 	return err
 }
 

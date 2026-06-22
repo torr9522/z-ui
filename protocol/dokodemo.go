@@ -1,8 +1,6 @@
 package protocol
 
 import (
-	"errors"
-	"strings"
 	"x-ui/database/model"
 	"x-ui/xray"
 )
@@ -33,48 +31,12 @@ func (m *dokodemoModule) FormSchema() FormSchema {
 }
 
 func (m *dokodemoModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
-	normalizeInboundProtocol(inbound, m.name)
-	settings, err := decodeObject(inbound.Settings)
-	if err != nil {
-		return nil, err
-	}
-	if strings.TrimSpace(stringValue(settings["network"])) == "" {
-		settings["network"] = "tcp,udp"
-	}
-	if _, exists := settings["followRedirect"]; !exists {
-		settings["followRedirect"] = false
-	}
-	inbound.Settings, err = encodeObject(settings)
-	if err != nil {
-		return nil, err
-	}
-	clearTransportState(inbound)
-	return inbound, nil
+	return normalizeInboundSchemaState(inbound, m.name, false)
 }
 
 func (m *dokodemoModule) Validate(inbound *model.Inbound) error {
-	normalizeInboundProtocol(inbound, m.name)
-	migrated, err := m.Migrate(inbound)
-	if err != nil {
-		return err
-	}
-	inbound = migrated
-	settings, err := decodeObject(inbound.Settings)
-	if err != nil {
-		return err
-	}
-	network := strings.TrimSpace(strings.ToLower(stringValue(settings["network"])))
-	if network == "" {
-		settings["network"] = "tcp,udp"
-	} else if network != "tcp,udp" && network != "tcp" && network != "udp" {
-		return errors.New("dokodemo-door/tunnel network must be tcp, udp, or tcp,udp")
-	}
-	inbound.Settings, err = encodeObject(settings)
-	if err != nil {
-		return err
-	}
-	clearTransportState(inbound)
-	return nil
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
+	return err
 }
 
 func (m *dokodemoModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {

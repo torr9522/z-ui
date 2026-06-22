@@ -10,10 +10,29 @@ import (
 	"x-ui/database/model"
 	"x-ui/protocol"
 	"x-ui/util/common"
+	xruntime "x-ui/runtime"
 	"x-ui/xray"
 )
 
 type InboundService struct {
+}
+
+func (s *InboundService) validateInboundRuntime(inbound *model.Inbound) error {
+	settingService := SettingService{}
+	templateConfig, err := settingService.GetXrayConfigTemplate()
+	if err != nil {
+		return err
+	}
+
+	builder := &xruntime.Builder{}
+	snapshot, err := builder.Build(templateConfig, []*model.Inbound{inbound})
+	if err != nil {
+		return err
+	}
+	if snapshot == nil || snapshot.Raw == nil {
+		return fmt.Errorf("build xray runtime snapshot failed")
+	}
+	return nil
 }
 
 func (s *InboundService) GetInbounds(userId int) ([]*model.Inbound, error) {
@@ -239,6 +258,9 @@ func (s *InboundService) saveInboundWithClients(tx *gorm.DB, inbound *model.Inbo
 		return err
 	}
 	if err := module.Validate(inbound); err != nil {
+		return err
+	}
+	if err := s.validateInboundRuntime(inbound); err != nil {
 		return err
 	}
 	settings, clients, err := splitSettingsClients(inbound.Settings)

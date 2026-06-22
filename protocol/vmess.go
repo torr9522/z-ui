@@ -25,22 +25,7 @@ func (m *vmessModule) FormSchema() FormSchema {
 }
 
 func (m *vmessModule) Validate(inbound *model.Inbound) error {
-	settings, err := normalizeVMessSettings(inbound.Settings)
-	if err != nil {
-		return err
-	}
-	inbound.Settings = settings
-	decoded, err := decodeObject(settings)
-	if err != nil {
-		return err
-	}
-	if err := validateClients(decoded, "clients"); err != nil {
-		return err
-	}
-	if err := validateClientUUIDs(decoded, "clients"); err != nil {
-		return err
-	}
-	_, err = normalizeStreamSettings(m.name, inbound.StreamSettings)
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
 	return err
 }
 
@@ -48,14 +33,9 @@ func (m *vmessModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig,
 	if err := m.Validate(inbound); err != nil {
 		return nil, err
 	}
-	settings, err := normalizeVMessSettings(inbound.Settings)
-	if err != nil {
-		return nil, err
-	}
-	inbound.Settings = settings
 	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
 	if err != nil {
 		return nil, err
 	}
-	return buildInboundConfig(inbound, settings, streamSettings), nil
+	return buildInboundConfig(inbound, inbound.Settings, streamSettings), nil
 }

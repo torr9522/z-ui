@@ -113,6 +113,82 @@ func TestInboundServiceNormalizesVMessAlterIDOnSave(t *testing.T) {
 	}
 }
 
+func TestInboundServiceDropsHiddenInvalidVMessClients(t *testing.T) {
+	initTestDB(t)
+
+	service := &InboundService{}
+	inbound := &model.Inbound{
+		UserId:   1,
+		Enable:   true,
+		Port:     24004,
+		Protocol: model.VMess,
+		Tag:      "inbound-24004",
+		Settings: `{"clients":[{"id":"11111111-1111-1111-1111-111111111111"},{"id":"not-a-uuid"}]}`,
+		Sniffing: `{}`,
+	}
+	if err := service.AddInbound(inbound); err != nil {
+		t.Fatalf("add inbound: %v", err)
+	}
+
+	saved, err := service.GetInbound(inbound.Id)
+	if err != nil {
+		t.Fatalf("get inbound: %v", err)
+	}
+	var settings map[string]interface{}
+	if err := json.Unmarshal([]byte(saved.Settings), &settings); err != nil {
+		t.Fatalf("decode settings: %v", err)
+	}
+	clients, ok := settings["clients"].([]interface{})
+	if !ok || len(clients) != 1 {
+		t.Fatalf("expected exactly 1 sanitized client, got %#v", settings["clients"])
+	}
+}
+
+func TestInboundServiceClearsVMessRealityResidual(t *testing.T) {
+	initTestDB(t)
+
+	service := &InboundService{}
+	inbound := &model.Inbound{
+		UserId:   1,
+		Enable:   true,
+		Port:     24005,
+		Protocol: model.VMess,
+		Tag:      "inbound-24005",
+		Settings: `{"clients":[{"id":"11111111-1111-1111-1111-111111111111"}]}`,
+		StreamSettings: `{"network":"tcp","security":"reality","realitySettings":{"privateKey":"abc","dest":"example.com:443"}}`,
+		Sniffing:       `{}`,
+	}
+	if err := service.AddInbound(inbound); err != nil {
+		t.Fatalf("add inbound: %v", err)
+	}
+
+	saved, err := service.GetInbound(inbound.Id)
+	if err != nil {
+		t.Fatalf("get inbound: %v", err)
+	}
+	if strings.Contains(saved.StreamSettings, `"reality"`) {
+		t.Fatalf("expected vmess reality residual to be cleared, got %s", saved.StreamSettings)
+	}
+}
+
+func TestInboundServiceRejectsInvalidShadowsocksMethodBeforeSave(t *testing.T) {
+	initTestDB(t)
+
+	service := &InboundService{}
+	inbound := &model.Inbound{
+		UserId:   1,
+		Enable:   true,
+		Port:     24006,
+		Protocol: model.Shadowsocks,
+		Tag:      "inbound-24006",
+		Settings: `{"method":"invalid-method","password":"secret","network":"tcp,udp"}`,
+		Sniffing: `{}`,
+	}
+	if err := service.AddInbound(inbound); err == nil {
+		t.Fatal("expected invalid shadowsocks method to fail before save")
+	}
+}
+
 func TestInitDBCreatesBackupOnMigration(t *testing.T) {
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "x-ui.db")

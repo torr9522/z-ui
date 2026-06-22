@@ -24,40 +24,17 @@ func (m *trojanModule) FormSchema() FormSchema {
 }
 
 func (m *trojanModule) Validate(inbound *model.Inbound) error {
-	settings, err := normalizeTrojanFlows(inbound.Settings)
-	if err != nil {
-		return err
-	}
-	inbound.Settings = settings
-	decoded, err := decodeObject(settings)
-	if err != nil {
-		return err
-	}
-	if err := validateClients(decoded, "clients"); err != nil {
-		return err
-	}
-	if err := validateClientPasswords(decoded, "clients"); err != nil {
-		return err
-	}
-	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
-	if err != nil {
-		return err
-	}
-	return validateRealityRequired(streamSettings)
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
+	return err
 }
 
 func (m *trojanModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {
 	if err := m.Validate(inbound); err != nil {
 		return nil, err
 	}
-	settings, err := normalizeTrojanFlows(inbound.Settings)
-	if err != nil {
-		return nil, err
-	}
-	inbound.Settings = settings
 	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
 	if err != nil {
 		return nil, err
 	}
-	return buildInboundConfig(inbound, settings, streamSettings), nil
+	return buildInboundConfig(inbound, inbound.Settings, streamSettings), nil
 }

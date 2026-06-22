@@ -27,6 +27,20 @@ type Builder struct {
 	registry *xprotocol.Registry
 }
 
+func resolveAssetDir() (string, error) {
+	candidates := []string{"bin", "../bin", "../../bin"}
+	for _, candidate := range candidates {
+		abs, err := filepath.Abs(candidate)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(abs, "geoip.dat")); err == nil {
+			return abs, nil
+		}
+	}
+	return "", fmt.Errorf("xray asset directory not found")
+}
+
 type Snapshot struct {
 	Raw      *xray.Config
 	Core     *xtcore.Config
@@ -42,7 +56,7 @@ type InboundState struct {
 }
 
 func (b *Builder) Build(templateConfig string, inbounds []*model.Inbound) (*Snapshot, error) {
-	if assetDir, err := filepath.Abs("bin"); err == nil {
+	if assetDir, err := resolveAssetDir(); err == nil {
 		_ = os.Setenv("XRAY_LOCATION_ASSET", assetDir)
 		_ = os.Setenv("xray.location.asset", assetDir)
 	}

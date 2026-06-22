@@ -29,66 +29,19 @@ func (m *httpModule) FormSchema() FormSchema {
 }
 
 func (m *httpModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
-	normalizeInboundProtocol(inbound, m.name)
-	rawStreamSettings := inbound.StreamSettings
-	settings, err := decodeObject(inbound.Settings)
-	if err != nil {
-		return nil, err
-	}
-	if _, exists := settings["allowTransparent"]; !exists {
-		settings["allowTransparent"] = false
-	}
-	if _, exists := settings["auth"]; !exists {
-		settings["auth"] = len(interfaceSlice(settings["accounts"])) > 0
-	}
-	if !boolValue(settings["auth"]) {
-		delete(settings, "accounts")
-	}
-	inbound.Settings, err = encodeObject(settings)
-	if err != nil {
-		return nil, err
-	}
-	clearTransportState(inbound)
-	if strings.TrimSpace(rawStreamSettings) != "" {
-		stream, err := normalizeHTTPStreamSettings(rawStreamSettings)
-		if err != nil {
-			return nil, err
-		}
-		inbound.StreamSettings = stream
-	}
-	return inbound, nil
+	return normalizeInboundSchemaState(inbound, m.name, false)
 }
 
 func (m *httpModule) Validate(inbound *model.Inbound) error {
-	normalizeInboundProtocol(inbound, m.name)
-	migrated, err := m.Migrate(inbound)
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
 	if err != nil {
 		return err
 	}
-	inbound = migrated
 	settings, err := decodeObject(inbound.Settings)
 	if err != nil {
 		return err
 	}
 	authEnabled := boolValue(settings["auth"])
-	if authEnabled {
-		accounts, ok := settings["accounts"].([]interface{})
-		if !ok || len(accounts) == 0 {
-			return errors.New("http password auth requires at least one account")
-		}
-		for _, item := range accounts {
-			account, ok := item.(map[string]interface{})
-			if !ok {
-				return errors.New("http account must be an object")
-			}
-			if stringValue(account["user"]) == "" {
-				return errors.New("http username must not be empty")
-			}
-			if stringValue(account["pass"]) == "" {
-				return errors.New("http password must not be empty")
-			}
-		}
-	}
 	delete(settings, "auth")
 	if !authEnabled {
 		delete(settings, "accounts")
@@ -99,13 +52,13 @@ func (m *httpModule) Validate(inbound *model.Inbound) error {
 	}
 	if strings.TrimSpace(inbound.StreamSettings) == "" {
 		inbound.StreamSettings = emptyObject()
-	} else {
-		stream, err := normalizeHTTPStreamSettings(inbound.StreamSettings)
-		if err != nil {
-			return err
-		}
-		inbound.StreamSettings = stream
+		return nil
 	}
+	stream, err := normalizeHTTPStreamSettings(inbound.StreamSettings)
+	if err != nil {
+		return err
+	}
+	inbound.StreamSettings = stream
 	return nil
 }
 

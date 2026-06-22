@@ -1,7 +1,6 @@
 package protocol
 
 import (
-	"errors"
 	"x-ui/database/model"
 	"x-ui/xray"
 )
@@ -32,76 +31,12 @@ func (m *socksModule) FormSchema() FormSchema {
 }
 
 func (m *socksModule) Migrate(inbound *model.Inbound) (*model.Inbound, error) {
-	normalizeInboundProtocol(inbound, m.name)
-	settings, err := decodeObject(inbound.Settings)
-	if err != nil {
-		return nil, err
-	}
-	auth := stringValue(settings["auth"])
-	if auth == "" {
-		settings["auth"] = "noauth"
-	}
-	if stringValue(settings["ip"]) == "" {
-		settings["ip"] = "127.0.0.1"
-	}
-	if _, exists := settings["udp"]; !exists {
-		settings["udp"] = true
-	}
-	if stringValue(settings["auth"]) != "password" {
-		delete(settings, "accounts")
-	}
-	inbound.Settings, err = encodeObject(settings)
-	if err != nil {
-		return nil, err
-	}
-	clearTransportState(inbound)
-	return inbound, nil
+	return normalizeInboundSchemaState(inbound, m.name, false)
 }
 
 func (m *socksModule) Validate(inbound *model.Inbound) error {
-	normalizeInboundProtocol(inbound, m.name)
-	migrated, err := m.Migrate(inbound)
-	if err != nil {
-		return err
-	}
-	inbound = migrated
-	settings, err := decodeObject(inbound.Settings)
-	if err != nil {
-		return err
-	}
-	auth := stringValue(settings["auth"])
-	switch auth {
-	case "", "password", "noauth":
-	default:
-		return errors.New("socks auth must be password or noauth")
-	}
-	if auth == "password" {
-		accounts, ok := settings["accounts"].([]interface{})
-		if !ok || len(accounts) == 0 {
-			return errors.New("socks password auth requires at least one account")
-		}
-		for _, item := range accounts {
-			account, ok := item.(map[string]interface{})
-			if !ok {
-				return errors.New("socks account must be an object")
-			}
-			if stringValue(account["user"]) == "" {
-				return errors.New("socks username must not be empty")
-			}
-			if stringValue(account["pass"]) == "" {
-				return errors.New("socks password must not be empty")
-			}
-		}
-	}
-	if auth != "password" {
-		delete(settings, "accounts")
-		inbound.Settings, err = encodeObject(settings)
-		if err != nil {
-			return err
-		}
-	}
-	clearTransportState(inbound)
-	return nil
+	_, err := normalizeInboundSchemaState(inbound, m.name, true)
+	return err
 }
 
 func (m *socksModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {
