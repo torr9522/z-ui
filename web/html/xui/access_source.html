@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+{{template "head" .}}
+<style>
+    @media (min-width: 769px) {
+        .ant-layout-content {
+            margin: 24px 16px;
+        }
+    }
+</style>
+<body>
+<a-layout id="app" v-cloak>
+    {{ template "commonSider" . }}
+    <a-layout id="content-layout">
+        <a-layout-content>
+            <a-spin :spinning="spinning" :delay="300" tip="loading">
+                <transition name="list" appear>
+                    <a-card hoverable style="margin-bottom: 20px;">
+                        <div slot="title">
+                            <a-icon type="bar-chart"></a-icon>
+                            端口共享检测
+                            <a-button style="margin-left: 8px;" size="small" icon="reload" @click="loadAnalytics">刷新</a-button>
+                        </div>
+                        <a-alert type="info"
+                                 show-icon
+                                 message="只读 access.log 分析"
+                                 description="本页面仅统计每个入站端口出现过的去重来源 IP 数和命中次数，并基于本机 GeoLite2 数据库补充 IP 画像；不代表真实在线用户，不影响 Xray 或网络配置，不涉及任何封禁或限制功能。"
+                                 style="margin-bottom: 12px;"></a-alert>
+                        <a-alert v-if="report.message"
+                                 type="warning"
+                                 show-icon
+                                 :message="report.message"
+                                 style="margin-bottom: 12px;"></a-alert>
+                    </a-card>
+                </transition>
+
+                <transition name="list" appear>
+                    <a-row :gutter="16">
+                        <a-col v-for="port in report.ports" :key="port.port" :xs="24" :sm="12" :lg="8">
+                            <a-card hoverable style="margin-bottom: 16px;">
+                                <div slot="title">
+                                    端口
+                                    <a-tag color="orange">[[ port.port ]]</a-tag>
+                                </div>
+                                <p>去重 IP 数：<a-tag color="green">[[ port.unique_ips ]]</a-tag></p>
+                                <p>命中次数：<a-tag color="blue">[[ port.total_hits ]]</a-tag></p>
+                                <a-divider style="margin: 12px 0;">IP画像</a-divider>
+                                <div v-if="port.ips && port.ips.length">
+                                    <div v-for="ip in port.ips.slice(0, 8)"
+                                         :key="`${port.port}-${ip.ip}`"
+                                         style="margin-bottom: 6px; line-height: 1.8;">
+                                        <a-tag color="purple">[[ ip.ip ]]</a-tag>
+                                        <span>[[ countryFlag(ip.country_code) ]] [[ ip.geo || '未知' ]] · [[ ip.isp || '未知' ]] · [[ deviceTypeText(ip.device_type) ]]</span>
+                                    </div>
+                                    <div v-if="port.ips.length > 8" style="color: #888;">
+                                        仅显示前 8 个来源 IP
+                                    </div>
+                                </div>
+                                <div v-else style="color: #888;">暂无 IP 画像数据</div>
+                            </a-card>
+                        </a-col>
+                    </a-row>
+                </transition>
+
+                <transition name="list" appear>
+                    <a-card hoverable>
+                        <div slot="title">端口统计</div>
+                        <a-table :columns="portColumns"
+                                 :row-key="port => `port-${port.port}`"
+                                 :data-source="report.ports"
+                                 :loading="spinning"
+                                 :pagination="false"
+                                 :scroll="{ x: 520 }">
+                            <template slot="port" slot-scope="text, port">
+                                <a-tag color="orange">[[ port.port ]]</a-tag>
+                            </template>
+                            <template slot="uniqueIps" slot-scope="text, port">
+                                <a-tag color="green">[[ port.unique_ips ]]</a-tag>
+                            </template>
+                            <template slot="totalHits" slot-scope="text, port">
+                                <a-tag color="blue">[[ port.total_hits ]]</a-tag>
+                            </template>
+                        </a-table>
+                    </a-card>
+                </transition>
+            </a-spin>
+        </a-layout-content>
+    </a-layout>
+</a-layout>
+{{template "js" .}}
+<script>
+    const portColumns = [{
+        title: "端口",
+        align: 'center',
+        width: 120,
+        scopedSlots: { customRender: 'port' },
+    }, {
+        title: "去重IP数",
+        align: 'center',
+        width: 160,
+        scopedSlots: { customRender: 'uniqueIps' },
+    }, {
+        title: "命中次数",
+        align: 'center',
+        width: 160,
+        scopedSlots: { customRender: 'totalHits' },
+    }];
+
+    const emptyReport = {
+        ports: [],
+        message: '',
+    };
+
+    const app = new Vue({
+        delimiters: ['[[', ']]'],
+        el: '#app',
+        data: {
+            siderDrawer,
+            spinning: false,
+            report: ObjectUtil.deepClone(emptyReport),
+        },
+        methods: {
+            loading(spinning = true) {
+                this.spinning = spinning;
+            },
+            async loadAnalytics() {
+                this.loading(true);
+                const msg = await HttpUtil.get('/api/access-source/analytics');
+                this.loading(false);
+                if (!msg.success) {
+                    return;
+                }
+                this.report = Object.assign(ObjectUtil.deepClone(emptyReport), msg.obj || {});
+            },
+            countryFlag(countryCode) {
+                const flags = {
+                    CN: '🇨🇳',
+                    HK: '🇭🇰',
+                    MO: '🇲🇴',
+                    TW: '🇹🇼',
+                    SG: '🇸🇬',
+                    JP: '🇯🇵',
+                    KR: '🇰🇷',
+                    US: '🇺🇸',
+                    GB: '🇬🇧',
+                    DE: '🇩🇪',
+                    FR: '🇫🇷',
+                };
+                return flags[(countryCode || '').toUpperCase()] || '';
+            },
+            deviceTypeText(deviceType) {
+                const labels = {
+                    CLOUD_SERVER: '云服务器',
+                    HOME_BROADBAND: '家庭宽带',
+                    MOBILE: '手机网络',
+                    DATACENTER: '数据中心',
+                    UNKNOWN: '未知',
+                };
+                return labels[deviceType] || '未知';
+            },
+        },
+        mounted() {
+            this.loadAnalytics();
+        },
+    });
+</script>
+</body>
+</html>

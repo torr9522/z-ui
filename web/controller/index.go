@@ -56,7 +56,7 @@ func (a *IndexController) login(c *gin.Context) {
 	}
 	user := a.userService.CheckUser(form.Username, form.Password)
 	if user == nil {
-		logger.Infof("wrong username or password: \"%s\" \"%s\"", form.Username, form.Password)
+		logger.Infof("wrong username or password for username: %q", form.Username)
 		pureJsonMsg(c, false, "用户名或密码错误")
 		return
 	}

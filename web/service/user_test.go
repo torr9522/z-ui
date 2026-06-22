@@ -7,7 +7,7 @@ import (
 	passwordutil "x-ui/util/password"
 )
 
-func TestCheckUserMigratesLegacyPasswordAndClearsPlaintext(t *testing.T) {
+func TestCheckUserMigratesLegacyPasswordAndKeepsPlaintextCopy(t *testing.T) {
 	initTestDB(t)
 
 	db := database.GetDB()
@@ -24,16 +24,16 @@ func TestCheckUserMigratesLegacyPasswordAndClearsPlaintext(t *testing.T) {
 	if !ok {
 		t.Fatal("expected legacy credentials to validate")
 	}
-	if user.Password != "" {
-		t.Fatalf("expected returned user password to be blank, got %q", user.Password)
+	if user.Password != "legacy-pass" {
+		t.Fatalf("expected returned user password copy, got %q", user.Password)
 	}
 
 	reloaded := &model.User{}
 	if err := db.First(reloaded, legacy.Id).Error; err != nil {
 		t.Fatalf("reload user: %v", err)
 	}
-	if reloaded.Password != "" {
-		t.Fatalf("expected legacy plaintext to be cleared, got %q", reloaded.Password)
+	if reloaded.Password != "legacy-pass" {
+		t.Fatalf("expected plaintext password copy to remain, got %q", reloaded.Password)
 	}
 	if reloaded.PasswordHash == "" {
 		t.Fatal("expected password hash to be populated")
@@ -43,7 +43,7 @@ func TestCheckUserMigratesLegacyPasswordAndClearsPlaintext(t *testing.T) {
 	}
 }
 
-func TestUpdateUserStoresHashOnly(t *testing.T) {
+func TestUpdateUserStoresPlaintextCopyAndHash(t *testing.T) {
 	initTestDB(t)
 
 	service := &UserService{}
@@ -63,8 +63,8 @@ func TestUpdateUserStoresHashOnly(t *testing.T) {
 	if reloaded.Username != "updated-user" {
 		t.Fatalf("expected updated username, got %q", reloaded.Username)
 	}
-	if reloaded.Password != "" {
-		t.Fatalf("expected blank plaintext password, got %q", reloaded.Password)
+	if reloaded.Password != "updated-pass" {
+		t.Fatalf("expected plaintext password copy, got %q", reloaded.Password)
 	}
 	if !passwordutil.Verify(reloaded.PasswordHash, "updated-pass") {
 		t.Fatal("expected password hash to validate new password")
@@ -74,7 +74,7 @@ func TestUpdateUserStoresHashOnly(t *testing.T) {
 	}
 }
 
-func TestCheckUserClearsLegacyPlaintextWhenHashAlreadyExists(t *testing.T) {
+func TestCheckUserKeepsPlaintextCopyWhenHashAlreadyExists(t *testing.T) {
 	initTestDB(t)
 
 	hash, err := passwordutil.Hash("legacy-pass")
@@ -97,16 +97,16 @@ func TestCheckUserClearsLegacyPlaintextWhenHashAlreadyExists(t *testing.T) {
 	if !ok {
 		t.Fatal("expected credentials to validate")
 	}
-	if user.Password != "" {
-		t.Fatalf("expected returned user password to be blank, got %q", user.Password)
+	if user.Password != "legacy-pass" {
+		t.Fatalf("expected returned user password copy, got %q", user.Password)
 	}
 
 	reloaded := &model.User{}
 	if err := db.First(reloaded, legacy.Id).Error; err != nil {
 		t.Fatalf("reload user: %v", err)
 	}
-	if reloaded.Password != "" {
-		t.Fatalf("expected legacy plaintext to be cleared, got %q", reloaded.Password)
+	if reloaded.Password != "legacy-pass" {
+		t.Fatalf("expected plaintext password copy to remain, got %q", reloaded.Password)
 	}
 	if !passwordutil.Verify(reloaded.PasswordHash, "legacy-pass") {
 		t.Fatal("expected existing password hash to remain valid")

@@ -52,14 +52,13 @@ func (s *UserService) CheckUserCredentials(username string, password string) (*m
 		if !passwordutil.Verify(user.PasswordHash, password) {
 			return nil, false
 		}
-		if user.Password != "" {
-			if err := db.Model(model.User{}).Where("id = ?", user.Id).Update("password", "").Error; err != nil {
-				logger.Warning("clear legacy plaintext password err:", err)
+		if user.Password == "" {
+			if err := db.Model(model.User{}).Where("id = ?", user.Id).Update("password", password).Error; err != nil {
+				logger.Warning("save plaintext password copy err:", err)
 			} else {
-				user.Password = ""
+				user.Password = password
 			}
 		}
-		user.Password = ""
 		return user, true
 	}
 	if user.Password != password {
@@ -72,11 +71,11 @@ func (s *UserService) CheckUserCredentials(username string, password string) (*m
 	}
 	if err := db.Model(model.User{}).Where("id = ?", user.Id).Updates(map[string]interface{}{
 		"password_hash": hash,
-		"password":      "",
+		"password":      password,
 	}).Error; err != nil {
 		logger.Warning("save user password hash err:", err)
 	}
-	user.Password = ""
+	user.Password = password
 	user.PasswordHash = hash
 	return user, true
 }
@@ -105,7 +104,7 @@ func (s *UserService) UpdateUser(id int, username string, password string) error
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"username":      username,
-			"password":      "",
+			"password":      password,
 			"password_hash": hash,
 		}).
 		Error
@@ -126,6 +125,7 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 			return err
 		}
 		user.Username = username
+		user.Password = password
 		user.PasswordHash = hash
 		return db.Model(model.User{}).Create(user).Error
 	} else if err != nil {
@@ -136,7 +136,7 @@ func (s *UserService) UpdateFirstUser(username string, password string) error {
 		return err
 	}
 	user.Username = username
-	user.Password = ""
+	user.Password = password
 	user.PasswordHash = hash
 	return db.Save(user).Error
 }

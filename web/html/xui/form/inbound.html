@@ -54,26 +54,38 @@
     </a-form-item>
 </a-form>
 
-<a-divider orientation="left">端口保护</a-divider>
-<a-alert type="info"
-         show-icon
-         message="窗口期 IP 限制"
-         description="统计指定时间窗口内访问该端口的唯一 IPv4 来源 IP。超过限制后临时封禁整个端口。这是窗口期唯一 IPv4 来源 IP 数，不是实时在线 IP 数。"
-         style="margin-bottom: 12px;"></a-alert>
-<a-form layout="inline">
-    <a-form-item label="启用端口保护">
-        <a-switch v-model="dbInbound.portGuardEnabled"></a-switch>
-    </a-form-item>
-    <a-form-item label="窗口期秒数">
-        <a-input-number v-model="dbInbound._portGuardWindowSeconds" :min="1" :max="86400"></a-input-number>
-    </a-form-item>
-    <a-form-item label="窗口期唯一 IPv4 数">
-        <a-input-number v-model="dbInbound.portGuardIpCount" :min="0" :max="65535"></a-input-number>
-    </a-form-item>
-    <a-form-item label="超限封禁秒数">
-        <a-input-number v-model="dbInbound._portGuardBanSeconds" :min="1" :max="86400"></a-input-number>
-    </a-form-item>
-</a-form>
+<div style="margin: 14px 0 10px;">
+    <button type="button"
+            @click="togglePortGuardPanel"
+            style="display: flex; align-items: center; width: 100%; min-height: 32px; padding: 0; border: 0; background: transparent; cursor: pointer; text-align: left;">
+        <a-icon :type="inModal.portGuardExpanded ? 'down' : 'right'" style="margin-right: 6px;"></a-icon>
+        <span style="font-weight: 600;">端口保护（高级功能）</span>
+        <a-tag :color="dbInbound.portGuardEnabled ? 'green' : 'default'" style="margin-left: 8px;">
+            [[ portGuardPanelStatusText() ]]
+        </a-tag>
+    </button>
+</div>
+<div v-show="inModal.portGuardExpanded">
+    <a-alert type="info"
+             show-icon
+             message="窗口期 IP 限制"
+             description="统计指定时间窗口内访问该端口的唯一 IPv4 来源 IP。超过限制后临时封禁整个端口。这是窗口期唯一 IPv4 来源 IP 数，不是实时在线 IP 数。"
+             style="margin-bottom: 12px;"></a-alert>
+    <a-form layout="inline">
+        <a-form-item label="启用端口保护">
+            <a-switch v-model="dbInbound.portGuardEnabled"></a-switch>
+        </a-form-item>
+        <a-form-item label="窗口期秒数">
+            <a-input-number v-model="dbInbound._portGuardWindowSeconds" :min="1" :max="86400"></a-input-number>
+        </a-form-item>
+        <a-form-item label="窗口期唯一 IPv4 数">
+            <a-input-number v-model="dbInbound.portGuardIpCount" :min="0" :max="65535"></a-input-number>
+        </a-form-item>
+        <a-form-item label="超限封禁秒数">
+            <a-input-number v-model="dbInbound._portGuardBanSeconds" :min="1" :max="86400"></a-input-number>
+        </a-form-item>
+    </a-form>
+</div>
 
 <a-alert v-if="legacyProtocolWarning()"
          type="warning"

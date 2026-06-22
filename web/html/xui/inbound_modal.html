@@ -15,6 +15,7 @@
         certificates: [],
         protocolSchemas: {},
         protocolSchema: null,
+        portGuardExpanded: false,
         inbound: new Inbound(),
         dbInbound: new DBInbound(),
         ok() {
@@ -38,6 +39,7 @@
             } else {
                 this.dbInbound = new DBInbound();
             }
+            this.portGuardExpanded = !!this.dbInbound.portGuardEnabled;
             this.confirm = confirm;
             this.loadProtocolSchema(this.inbound.protocol);
             this.loadCertificates();
@@ -231,6 +233,12 @@
             },
             legacyVMessWarning() {
                 return this.inbound.legacyVMessWarning();
+            },
+            togglePortGuardPanel() {
+                this.inModal.portGuardExpanded = !this.inModal.portGuardExpanded;
+            },
+            portGuardPanelStatusText() {
+                return this.dbInbound.portGuardEnabled ? '已启用' : '关闭';
             },
             async generateRealityKeyPair() {
                 const msg = await HttpUtil.post('/api/protocol/reality/keypair');

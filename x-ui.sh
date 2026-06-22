@@ -37,12 +37,23 @@ random_hex() {
   od -An -N"${bytes}" -tx1 /dev/urandom | tr -d ' \n'
 }
 
+random_alnum() {
+  local length="$1"
+  local value=""
+  while [[ "${#value}" -lt "${length}" ]]; do
+    value+="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${length}" || true)"
+  done
+  printf '%s' "${value:0:${length}}"
+}
+
 generate_username() {
-  printf 'xui_%s\n' "$(random_hex 4 | cut -c1-8)"
+  random_alnum 10
+  printf '\n'
 }
 
 generate_password() {
-  random_hex 18
+  random_alnum 18
+  printf '\n'
 }
 
 port_in_use() {
@@ -450,21 +461,64 @@ current_username() {
   printf '%s\n' "${username:-unknown}"
 }
 
+current_password() {
+  local password
+  password="$(sqlite_value "select password from users order by id asc limit 1;")"
+  if [[ -n "${password}" ]]; then
+    printf '%s\n' "${password}"
+  else
+    printf '未保存明文，请使用 x-ui reset-user 重置\n'
+  fi
+}
+
 current_version() {
   if [[ -x "${BIN}" ]]; then
-    "${BIN}" -v 2>/dev/null || printf 'unknown\n'
+    "${BIN}" -v 2>/dev/null || printf '未知\n'
   else
-    printf 'unknown\n'
+    printf '未知\n'
+  fi
+}
+
+binary_version_value() {
+  local key="$1"
+  if [[ -x "${BIN}" ]]; then
+    "${BIN}" version 2>/dev/null | awk -F': ' -v key="${key}" '$1 == key {print $2; found=1} END {if (!found) print ""}'
   fi
 }
 
 current_commit() {
-  if [[ -f "${INSTALL_DIR}/COMMIT" ]]; then
+  local value
+  value="$(binary_version_value "Commit")"
+  if [[ -n "${value}" ]]; then
+    printf '%s\n' "${value}"
+  elif [[ -f "${INSTALL_DIR}/COMMIT" ]]; then
     head -n1 "${INSTALL_DIR}/COMMIT"
   elif [[ -d "${INSTALL_DIR}/.git" ]] && command -v git >/dev/null 2>&1; then
-    git -C "${INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || printf 'unknown\n'
+    git -C "${INSTALL_DIR}" rev-parse --short HEAD 2>/dev/null || printf '未知\n'
   else
-    printf 'unknown\n'
+    printf '未知\n'
+  fi
+}
+
+current_branch() {
+  local value
+  value="$(binary_version_value "Branch")"
+  if [[ -n "${value}" ]]; then
+    printf '%s\n' "${value}"
+  elif [[ -d "${INSTALL_DIR}/.git" ]] && command -v git >/dev/null 2>&1; then
+    git -C "${INSTALL_DIR}" branch --show-current 2>/dev/null || printf '未知\n'
+  else
+    printf '未知\n'
+  fi
+}
+
+current_build_time() {
+  local value
+  value="$(binary_version_value "BuildTime")"
+  if [[ -n "${value}" ]]; then
+    printf '%s\n' "${value}"
+  else
+    printf '未知\n'
   fi
 }
 
@@ -560,52 +614,67 @@ EOF
 cmd_info() {
   require_installed
   cat <<EOF
-Panel URL:
+面板地址：
 $(panel_url)
 
-Username:
-$(current_username)
+当前协议：
+$(panel_scheme | tr '[:lower:]' '[:upper:]')
 
-Password:
-not displayed
-
-Service Status:
-$(service_status)
-
-Version:
-$(current_version)
-
-Commit:
-$(current_commit)
-
-Panel Port:
+当前端口：
 $(current_port)
 
-Config:
+当前用户名：
+$(current_username)
+
+当前密码：
+$(current_password)
+
+服务状态：
+$(service_status_text "$(service_status)")
+
+当前版本：
+$(current_version)
+
+当前提交：
+$(current_commit)
+
+当前分支：
+$(current_branch)
+
+构建时间：
+$(current_build_time)
+
+数据库：
  ${DB_PATH}
 
-Service:
+服务：
  systemctl status x-ui
 EOF
 }
 
 cmd_panel_info_cn() {
   require_installed
-  local scheme port username status version commit
+  local scheme port username password status version commit branch build_time
   scheme="$(panel_scheme)"
   port="$(current_port)"
   username="$(current_username)"
+  password="$(current_password)"
   status="$(service_status)"
   version="$(current_version)"
   commit="$(current_commit)"
+  branch="$(current_branch)"
+  build_time="$(current_build_time)"
   cat <<EOF
 面板地址：$(panel_url "${port}")
 当前协议：${scheme^^}
 当前端口：${port}
 当前用户名：${username}
+当前密码：${password}
 服务状态：$(service_status_text "${status}")
 当前版本：${version}
-当前 Commit：${commit}
+当前提交：${commit}
+当前分支：${branch}
+构建时间：${build_time}
 EOF
 }
 
@@ -1242,6 +1311,7 @@ cmd_uninstall_confirmed() {
   systemctl stop zui-port-guard-sync.service >/dev/null 2>&1 || true
   rm -f "/etc/systemd/system/${SERVICE_NAME}.service"
   rm -f "${PORT_GUARD_TIMER}" "${PORT_GUARD_SERVICE}" "${PORT_GUARD_SYNC}"
+  rm -f /etc/logrotate.d/x-ui-xray-access
   systemctl daemon-reload
   if command -v nft >/dev/null 2>&1; then
     nft delete table inet "${PORT_GUARD_TABLE}" >/dev/null 2>&1 || true
@@ -1276,7 +1346,7 @@ x-ui 命令用法：
   x-ui log          查看日志
   x-ui reset-user   重置账号密码
   x-ui reset-port   重置面板端口
-  x-ui info         查看面板地址和用户名
+  x-ui info         查看面板地址、用户名和当前密码
   x-ui cert         证书管理
   x-ui cert status  查看证书续期状态
   x-ui cert renew   续期 30 天内到期的证书

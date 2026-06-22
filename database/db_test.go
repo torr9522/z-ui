@@ -32,8 +32,8 @@ func TestInitDBBootstrapsSecureFirstUser(t *testing.T) {
 	if err := GetDB().First(user).Error; err != nil {
 		t.Fatalf("load user: %v", err)
 	}
-	if user.Password != "" {
-		t.Fatalf("expected blank legacy password column, got %q", user.Password)
+	if user.Password != bootstrap.Password {
+		t.Fatalf("expected plaintext password copy, got %q", user.Password)
 	}
 	if user.PasswordHash == "" {
 		t.Fatal("expected password hash")

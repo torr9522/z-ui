@@ -153,6 +153,7 @@ func ensureBootstrapState() (*BootstrapCredentials, error) {
 
 	user := &model.User{
 		Username:     username,
+		Password:     password,
 		PasswordHash: passwordHash,
 	}
 	if err := db.Create(user).Error; err != nil {

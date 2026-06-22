@@ -123,6 +123,10 @@ func printBootstrapCredentials(bootstrap *database.BootstrapCredentials) {
 	if bootstrap == nil {
 		return
 	}
+	stat, err := os.Stdout.Stat()
+	if err != nil || (stat.Mode()&os.ModeCharDevice) == 0 {
+		return
+	}
 	fmt.Println("Initial x-ui credentials")
 	fmt.Printf("  Username: %s\n", bootstrap.Username)
 	fmt.Printf("  Password: %s\n", bootstrap.Password)
@@ -162,6 +166,7 @@ func main() {
 		fmt.Println("    run            run web panel")
 		fmt.Println("    v2-ui          migrate form v2-ui")
 		fmt.Println("    setting        set settings")
+		fmt.Println("    version        show build metadata")
 	}
 
 	flag.Parse()
@@ -199,8 +204,13 @@ func main() {
 		} else {
 			updateSetting(port, username, password)
 		}
+	case "version":
+		fmt.Println("Version:", config.GetVersion())
+		fmt.Println("Commit:", config.GetBuildCommit())
+		fmt.Println("Branch:", config.GetBuildBranch())
+		fmt.Println("BuildTime:", config.GetBuildTime())
 	default:
-		fmt.Println("except 'run' or 'v2-ui' or 'setting' subcommands")
+		fmt.Println("except 'run' or 'v2-ui' or 'setting' or 'version' subcommands")
 		fmt.Println()
 		runCmd.Usage()
 		fmt.Println()

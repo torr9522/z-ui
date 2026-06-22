@@ -86,6 +86,7 @@ type Server struct {
 	api       *controller.ProtocolController
 	cert      *controller.CertificateController
 	portGuard *controller.PortGuardController
+	accessSrc *controller.AccessSourceController
 
 	xrayService    service.XrayService
 	settingService service.SettingService
@@ -212,6 +213,7 @@ func (s *Server) initRouter(sessionOptions sessions.Options) (*gin.Engine, error
 	s.api = controller.NewProtocolController(g)
 	s.cert = controller.NewCertificateController(g)
 	s.portGuard = controller.NewPortGuardController(g)
+	s.accessSrc = controller.NewAccessSourceController(g)
 
 	return engine, nil
 }

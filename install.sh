@@ -10,6 +10,7 @@ COMMAND_PATH="/usr/bin/x-ui"
 PORT_GUARD_SYNC_PATH="/usr/local/bin/zui-port-guard-sync"
 PORT_GUARD_SERVICE_PATH="/etc/systemd/system/zui-port-guard-sync.service"
 PORT_GUARD_TIMER_PATH="/etc/systemd/system/zui-port-guard-sync.timer"
+XRAY_ACCESS_LOGROTATE_PATH="/etc/logrotate.d/x-ui-xray-access"
 REPO="${XUI_REPO:-torr9522/z-ui}"
 XUI_RELEASE_VERSION="${1:-${XUI_VERSION:-}}"
 TMP_DIR=""
@@ -66,14 +67,14 @@ install_dependencies() {
     debian | ubuntu)
       export DEBIAN_FRONTEND=noninteractive
       apt-get update -y
-      apt-get install -y curl wget tar unzip ca-certificates systemd sqlite3 nftables
+      apt-get install -y curl wget tar unzip ca-certificates systemd sqlite3 nftables logrotate
       ;;
     rhel)
       local pm="yum"
       if command -v dnf >/dev/null 2>&1; then
         pm="dnf"
       fi
-      "${pm}" install -y curl wget tar unzip ca-certificates systemd sqlite nftables
+      "${pm}" install -y curl wget tar unzip ca-certificates systemd sqlite nftables logrotate
       ;;
     *)
       fail "unsupported package manager for ${OS_FAMILY}"
@@ -125,12 +126,23 @@ random_hex() {
   od -An -N"${bytes}" -tx1 /dev/urandom | tr -d ' \n'
 }
 
+random_alnum() {
+  local length="$1"
+  local value=""
+  while [[ "${#value}" -lt "${length}" ]]; do
+    value+="$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c "${length}" || true)"
+  done
+  printf '%s' "${value:0:${length}}"
+}
+
 generate_username() {
-  printf 'xui_%s\n' "$(random_hex 4 | cut -c1-8)"
+  random_alnum 10
+  printf '\n'
 }
 
 generate_password() {
-  random_hex 18
+  random_alnum 18
+  printf '\n'
 }
 
 port_in_use() {
@@ -208,6 +220,30 @@ install_files() {
   fi
   if [[ -f "${INSTALL_DIR}/zui-port-guard-sync.timer" ]]; then
     install -m 0644 "${INSTALL_DIR}/zui-port-guard-sync.timer" "${PORT_GUARD_TIMER_PATH}"
+  fi
+}
+
+install_xray_access_logrotate() {
+  local source_path="${INSTALL_DIR}/packaging/logrotate/x-ui-xray-access"
+  mkdir -p /var/log/xray
+  if [[ -f "${source_path}" ]]; then
+    install -m 0644 "${source_path}" "${XRAY_ACCESS_LOGROTATE_PATH}"
+  else
+    cat >"${XRAY_ACCESS_LOGROTATE_PATH}" <<'EOF'
+/var/log/xray/access.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}
+EOF
+    chmod 0644 "${XRAY_ACCESS_LOGROTATE_PATH}"
+  fi
+  if systemctl list-unit-files logrotate.timer >/dev/null 2>&1; then
+    systemctl enable --now logrotate.timer >/dev/null 2>&1 || true
   fi
 }
 
@@ -304,6 +340,7 @@ main() {
   package_path="$(download_package "${TMP_DIR}")"
   backup_existing_db
   install_files "${package_path}" "${TMP_DIR}"
+  install_xray_access_logrotate
   initialize_panel
   start_service
   start_port_guard

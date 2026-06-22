@@ -2,6 +2,19 @@
 
 Modern x-ui is a maintained modernization branch of x-ui. It keeps the original lightweight Go + SQLite + server-rendered panel architecture while upgrading the project to Xray-core 26.x and adding safer authentication, migrations, protocol modules, Runtime API reconciliation, certificate management, and secure install scripts.
 
+## System Positioning
+
+z-ui is a lightweight Xray observation and log analysis system:
+
+- log analysis and display only
+- no traffic control
+- no blocking or rate limiting
+- no time-window risk analysis
+- no complex statistical modeling
+- no system network rule changes
+
+Log lifecycle is handled by OS logrotate, Xray writes logs, and z-ui reads access.log in read-only mode to display port access-source summaries.
+
 ## Features
 
 - Go 1.26 baseline
@@ -90,6 +103,16 @@ x-ui port-guard logs
 ```
 
 `x-ui uninstall` requires typing `UNINSTALL` before it proceeds.
+
+## Xray access.log Rotation
+
+The installer writes the OS-level logrotate config:
+
+```text
+/etc/logrotate.d/x-ui-xray-access
+```
+
+It only manages `/var/log/xray/access.log` lifecycle: daily rotation, 7 retained history files, compression, and `copytruncate` so Xray can keep writing without restart. z-ui still reads access.log in read-only mode for access-source analysis and does not change Xray runtime behavior or add access-control behavior.
 
 ## Certificate Management
 

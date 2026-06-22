@@ -4,6 +4,19 @@ Modern x-ui 是基于 x-ui 的现代化维护分支，目标是在保持原项�
 
 本仓库适合作为长期维护、二次开发和审计基线。项目仍然保持 Go + SQLite + 现有 Vue/Ant Design 模板的轻量架构，避免引入企业级复杂度。
 
+## 系统定位说明
+
+z-ui 是一个轻量级 Xray 观测与日志分析系统：
+
+- 仅做日志分析与展示
+- 不做流量控制
+- 不做封禁或限速
+- 不做时间窗口风险分析
+- 不做复杂统计建模
+- 不修改系统网络规则
+
+日志生命周期由 OS logrotate 管理，Xray 负责写日志，z-ui 只读 access.log 并展示端口访问来源概览。
+
 ## 功能列表
 
 - Go 1.26 构建基线
@@ -44,7 +57,7 @@ Modern x-ui 是基于 x-ui 的现代化维护分支，目标是在保持原项�
 bash <(curl -Ls https://raw.githubusercontent.com/torr9522/z-ui/z-ui/install.sh)
 ```
 
-安装流程会生成随机用户名、随机强密码和 10000-59999 范围内的随机面板端口。登录信息只输出到当前终端。
+安装流程会生成随机用户名、随机强密码和 10000-59999 范围内的随机面板端口。为了兼容 n-ui 风格，本版本会在 `users.password` 保存当前明文密码副本，同时继续保存 `users.password_hash` 用于登录校验。
 
 ## 管理命令
 
@@ -73,6 +86,16 @@ x-ui update
 x-ui uninstall
 ```
 
+`x-ui info` 会显示当前面板地址、协议、端口、用户名、当前明文密码、Version、Commit、Branch 和 Build Time。该命令只能由本机 root 执行；请确保服务器 root 权限安全。
+
+Commit 优先来自构建时注入的 `BuildCommit`；如果没有注入，会尝试读取 Go build info 中的 `vcs.revision`。
+
+查看版本信息：
+
+```bash
+x-ui info
+```
+
 证书命令：
 
 ```bash
@@ -92,6 +115,16 @@ x-ui port-guard logs
 ```
 
 `x-ui uninstall` 需要输入 `UNINSTALL` 才会继续，避免误删服务。
+
+## Xray access.log 轮转
+
+安装器会写入 OS 层 logrotate 配置：
+
+```text
+/etc/logrotate.d/x-ui-xray-access
+```
+
+该配置仅管理 `/var/log/xray/access.log` 生命周期：每天轮转，最多保留 7 份历史日志，旧日志压缩，并使用 `copytruncate` 避免影响 Xray 继续写入。z-ui 仍然只读 access.log 做访问来源分析，不修改 Xray 运行逻辑，也不引入任何访问控制行为。
 
 ## 证书管理
 
@@ -171,6 +204,18 @@ go build ./...
 go build -o x-ui .
 ```
 
+带构建元信息的构建命令：
+
+```bash
+COMMIT=$(git rev-parse --short HEAD)
+BRANCH=$(git branch --show-current)
+BUILD_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+go build -o x-ui -ldflags "\
+-X 'x-ui/config.BuildCommit=${COMMIT}' \
+-X 'x-ui/config.BuildBranch=${BRANCH}' \
+-X 'x-ui/config.BuildTime=${BUILD_TIME}'" .
+```
+
 ## 测试命令
 
 ```bash
@@ -204,6 +249,10 @@ node scripts/ui_dom_check.js
 - `knowledge-base/`：项目知识库和二开指南
 
 ## 安全说明
+
+当前版本为了兼容 n-ui 风格，`x-ui info` 和中文菜单“面板信息”会从本机 SQLite 的 `users.password` 读取并显示当前明文密码。登录校验仍优先使用 `users.password_hash`，session 仍只保存 userId / username / 登录状态，登录失败日志不会记录用户输入的密码。
+
+请确保服务器 root 权限安全。拥有本机 root 权限的用户可以读取数据库，也可以通过 `x-ui info` 查看当前面板密码。
 
 上传远程仓库前不得包含：
 
