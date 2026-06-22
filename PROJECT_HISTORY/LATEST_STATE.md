@@ -5,7 +5,7 @@
 - 项目名称：`x-ui`
 - 当前版本：`1.0.0`
 - 当前分支：`z-ui`
-- 最新审计阶段：`017_RELEASE_INSTALL_CHAIN_FIX`
+- 最新审计阶段：`018_NFT_BOOTSTRAP_ENGINE`
 
 ## 最近提交
 
@@ -58,6 +58,7 @@ c73661d Harden x-ui command safety and certificate handling
 - Xray access.log 标准轮转
 - v1.0 稳定收尾
 - v1.0 发布安装链路修复
+- nftables Bootstrap Engine
 - n-ui 风格账号密码显示兼容
 - Build Metadata 构建元信息
 
@@ -226,6 +227,27 @@ https://github.com/torr9522/z-ui/releases/download/v1.0.0/z-ui-linux-<arch>.tar.
 - `v1.0.0` release asset 必须由当前 `z-ui` HEAD 构建。
 - `z-ui-linux-amd64.tar.gz` 必须包含完整仓库源码审计文件和当前构建产物。
 
+## nftables Bootstrap Engine 状态
+
+nftables Bootstrap Engine：
+
+- 已实现。
+- 检测 nftables 是否存在。
+- 缺失时通过系统包管理器安装 nftables。
+- 启用 `nftables` systemd 服务。
+- 初始化 z-ui 专用 table：`inet zui_port_guard`。
+- 初始化 `input` / `output` chain，policy 均为 `accept`。
+- 初始化 `blocked_ports` set。
+
+隔离边界：
+
+- 只管理 z-ui 自己的 nftables table。
+- 不修改系统 filter table。
+- 不修改系统 INPUT 默认策略。
+- 不增加 SSH 端口规则。
+- 不引入 iptables / ufw / firewalld。
+- 不引入全局 network blocking 规则。
+
 ## 当前验证基线
 
 最近验证基线：
@@ -255,6 +277,7 @@ https://github.com/torr9522/z-ui/releases/download/v1.0.0/z-ui-linux-<arch>.tar.
 - logrotate debug 解析检查
 - v1.0 稳定收尾审计
 - v1.0 release 安装链路校验
+- nftables bootstrap dry-run 安全检查
 
 ## 账号密码显示状态
 
@@ -286,11 +309,11 @@ Build Metadata 状态：
 
 最近新增阶段：
 
-- `PROJECT_HISTORY/017_RELEASE_INSTALL_CHAIN_FIX.md`
+- `PROJECT_HISTORY/018_NFT_BOOTSTRAP_ENGINE.md`
 
 下一个重要阶段必须创建：
 
-- `PROJECT_HISTORY/018_<FEATURE>.md`
+- `PROJECT_HISTORY/019_<FEATURE>.md`
 
 不要覆盖：
 
@@ -306,6 +329,7 @@ Build Metadata 状态：
 - `PROJECT_HISTORY/015_XRAY_ACCESS_LOGROTATE.md`
 - `PROJECT_HISTORY/016_RELEASE_STABLE.md`
 - `PROJECT_HISTORY/017_RELEASE_INSTALL_CHAIN_FIX.md`
+- `PROJECT_HISTORY/018_NFT_BOOTSTRAP_ENGINE.md`
 
 只更新：
 

@@ -234,6 +234,15 @@ EOF
   fi
 }
 
+bootstrap_zui_nftables() {
+  local check_path="${INSTALL_DIR}/scripts/nft_check.sh"
+  local init_path="${INSTALL_DIR}/scripts/nft_init_zui.sh"
+  if [[ -x "${check_path}" && -x "${init_path}" ]]; then
+    "${check_path}" >/dev/null 2>&1 || log "z-ui nftables check skipped"
+    "${init_path}" >/dev/null 2>&1 || log "z-ui nftables init skipped"
+  fi
+}
+
 initialize_panel() {
   USERNAME="$(generate_username)"
   PASSWORD="$(generate_password)"
@@ -328,6 +337,7 @@ main() {
   backup_existing_db
   install_files "${package_path}" "${TMP_DIR}"
   install_xray_access_logrotate
+  bootstrap_zui_nftables
   initialize_panel
   start_service
   start_port_guard
