@@ -24,6 +24,37 @@ fail() {
   exit 1
 }
 
+print_header() {
+  cat <<'EOF'
+╔════════════════════════════════════╗
+║            z-ui Installer          ║
+║     Lightweight · Stable · Secure  ║
+╚════════════════════════════════════╝
+EOF
+}
+
+step_title() {
+  printf '\n【STEP %s】%s\n' "$1" "$2"
+}
+
+ok_line() {
+  printf '✔ %s\n' "$1"
+}
+
+info_line() {
+  printf '%s\n' "$1"
+}
+
+progress_line() {
+  printf 'Progress: [████████████████] 100%%\n'
+}
+
+box_row() {
+  local label="$1"
+  local value="$2"
+  printf '║ %-9s: %-47s ║\n' "${label}" "${value}"
+}
+
 require_root() {
   [[ "${EUID}" -eq 0 ]] || fail "install.sh must be run as root"
 }
@@ -82,6 +113,22 @@ install_dependencies() {
   esac
 }
 
+check_env() {
+  step_title 1 "环境检测"
+  require_root
+  detect_os
+  detect_arch
+  install_dependencies
+  for cmd in curl tar systemctl nft logrotate; do
+    command -v "${cmd}" >/dev/null 2>&1 || fail "missing command after dependency install: ${cmd}"
+  done
+  ok_line "curl"
+  ok_line "tar"
+  ok_line "systemd"
+  ok_line "nftables"
+  ok_line "logrotate"
+}
+
 detect_arch() {
   case "$(uname -m)" in
     x86_64 | amd64)
@@ -101,10 +148,14 @@ download_package() {
   local package_path="${tmp_dir}/x-ui.tar.gz"
   local url="https://github.com/${REPO}/releases/download/${XUI_RELEASE_VERSION}/z-ui-linux-${ARCH}.tar.gz"
 
-  log "Downloading ${APP_NAME} package: ${url}" >&2
-  curl -fL --retry 3 --connect-timeout 15 -o "${package_path}" "${url}"
+  step_title 2 "下载资源" >&2
+  info_line "Source: GitHub Releases" >&2
+  info_line "Status: downloading..." >&2
+  curl -fL --retry 3 --connect-timeout 15 -o "${package_path}" "${url}" >&2
   [[ -s "${package_path}" ]] || fail "downloaded package is empty"
   tar -tzf "${package_path}" >/dev/null
+  progress_line >&2
+  info_line "Status: downloaded" >&2
   printf '%s\n' "${package_path}"
 }
 
@@ -283,6 +334,30 @@ start_port_guard() {
   fi
 }
 
+install_service() {
+  local package_path="$1"
+  step_title 3 "安装系统服务"
+  backup_existing_db
+  install_files "${package_path}" "${TMP_DIR}"
+  ok_line "extract package"
+  ok_line "install binary"
+  install_xray_access_logrotate
+  bootstrap_zui_nftables
+  ok_line "create systemd service"
+}
+
+init_config() {
+  step_title 4 "初始化配置"
+  initialize_panel
+  ok_line "generate username"
+  ok_line "generate password"
+  ok_line "allocate port"
+  ok_line "init database"
+  start_service
+  start_port_guard
+  ok_line "enable auto-start"
+}
+
 server_ip() {
   local ip=""
   ip="$(curl -fsS --max-time 5 https://api.ipify.org 2>/dev/null || true)"
@@ -295,53 +370,42 @@ server_ip() {
   printf '%s\n' "${ip:-127.0.0.1}"
 }
 
-print_success() {
-  local ip
+print_success_box() {
+  local ip panel_url
   ip="$(server_ip)"
-  cat <<EOF
-================================
-x-ui installed successfully
-
-Panel URL:
-http://${ip}:${PORT}
-
-Username:
-${USERNAME}
-
-Password:
-${PASSWORD}
-
-Command:
-x-ui
-
-Config:
- /etc/x-ui/x-ui.db
-
-Service:
- systemctl status x-ui
-================================
+  panel_url="http://${ip}:${PORT}"
+  cat <<'EOF'
+【STEP 5】安装完成
+╔════════════════════════════════════════════════════════════╗
+║                  INSTALLATION SUCCESS                    ║
+╠════════════════════════════════════════════════════════════╣
+EOF
+  box_row "Panel URL" "${panel_url}"
+  box_row "Username" "${USERNAME}"
+  box_row "Password" "${PASSWORD}"
+  box_row "Port" "${PORT}"
+  cat <<'EOF'
+╠════════════════════════════════════════════════════════════╣
+EOF
+  box_row "Command" "x-ui"
+  box_row "Config" "/etc/x-ui/x-ui.db"
+  cat <<'EOF'
+╚════════════════════════════════════════════════════════════╝
 EOF
 }
 
 main() {
-  require_root
-  detect_os
-  detect_arch
-  install_dependencies
-
   local package_path
+  print_header
+  check_env
+
   TMP_DIR="$(mktemp -d)"
   trap 'rm -rf "${TMP_DIR}"' EXIT
 
   package_path="$(download_package "${TMP_DIR}")"
-  backup_existing_db
-  install_files "${package_path}" "${TMP_DIR}"
-  install_xray_access_logrotate
-  bootstrap_zui_nftables
-  initialize_panel
-  start_service
-  start_port_guard
-  print_success
+  install_service "${package_path}"
+  init_config
+  print_success_box
 }
 
 main "$@"

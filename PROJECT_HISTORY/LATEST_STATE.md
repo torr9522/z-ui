@@ -5,7 +5,7 @@
 - 项目名称：`x-ui`
 - 当前版本：`1.0.0`
 - 当前分支：`z-ui`
-- 最新审计阶段：`018_NFT_BOOTSTRAP_ENGINE`
+- 最新审计阶段：`019_INSTALLER_UI_REFRESH`
 
 ## 最近提交
 
@@ -59,6 +59,7 @@ c73661d Harden x-ui command safety and certificate handling
 - v1.0 稳定收尾
 - v1.0 发布安装链路修复
 - nftables Bootstrap Engine
+- install.sh 安装界面 UI 升级
 - n-ui 风格账号密码显示兼容
 - Build Metadata 构建元信息
 
@@ -248,6 +249,18 @@ nftables Bootstrap Engine：
 - 不引入 iptables / ufw / firewalld。
 - 不引入全局 network blocking 规则。
 
+## 安装器 UI 状态
+
+install.sh 安装界面：
+
+- 已升级为分阶段终端 UI。
+- 包含 z-ui Installer 标题。
+- 包含 STEP 1 到 STEP 5。
+- 安装完成使用 box 风格信息面板。
+- 使用 bash 原生 `printf` / `cat`。
+- 不引入 Python / Node.js / ncurses / dialog / whiptail。
+- 安装逻辑保持不变。
+
 ## 当前验证基线
 
 最近验证基线：
@@ -278,6 +291,7 @@ nftables Bootstrap Engine：
 - v1.0 稳定收尾审计
 - v1.0 release 安装链路校验
 - nftables bootstrap dry-run 安全检查
+- install.sh UI 语法检查
 
 ## 账号密码显示状态
 
@@ -309,11 +323,11 @@ Build Metadata 状态：
 
 最近新增阶段：
 
-- `PROJECT_HISTORY/018_NFT_BOOTSTRAP_ENGINE.md`
+- `PROJECT_HISTORY/019_INSTALLER_UI_REFRESH.md`
 
 下一个重要阶段必须创建：
 
-- `PROJECT_HISTORY/019_<FEATURE>.md`
+- `PROJECT_HISTORY/020_<FEATURE>.md`
 
 不要覆盖：
 
@@ -330,6 +344,7 @@ Build Metadata 状态：
 - `PROJECT_HISTORY/016_RELEASE_STABLE.md`
 - `PROJECT_HISTORY/017_RELEASE_INSTALL_CHAIN_FIX.md`
 - `PROJECT_HISTORY/018_NFT_BOOTSTRAP_ENGINE.md`
+- `PROJECT_HISTORY/019_INSTALLER_UI_REFRESH.md`
 
 只更新：
 
