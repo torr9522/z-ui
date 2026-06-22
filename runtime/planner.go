@@ -11,11 +11,11 @@ import (
 type OperationType string
 
 const (
-	OperationAddInbound    OperationType = "AddInbound"
-	OperationRemoveInbound OperationType = "RemoveInbound"
+	OperationAddInbound     OperationType = "AddInbound"
+	OperationRemoveInbound  OperationType = "RemoveInbound"
 	OperationReplaceInbound OperationType = "ReplaceInbound"
-	OperationAddClient     OperationType = "AddClient"
-	OperationRemoveClient  OperationType = "RemoveClient"
+	OperationAddClient      OperationType = "AddClient"
+	OperationRemoveClient   OperationType = "RemoveClient"
 )
 
 type Operation struct {

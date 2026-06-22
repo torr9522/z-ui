@@ -12,7 +12,7 @@ PORT_GUARD_SERVICE_PATH="/etc/systemd/system/zui-port-guard-sync.service"
 PORT_GUARD_TIMER_PATH="/etc/systemd/system/zui-port-guard-sync.timer"
 XRAY_ACCESS_LOGROTATE_PATH="/etc/logrotate.d/x-ui-xray-access"
 REPO="${XUI_REPO:-torr9522/z-ui}"
-XUI_RELEASE_VERSION="v1.0.1"
+XUI_RELEASE_VERSION="v1.0.2"
 TMP_DIR=""
 
 log() {

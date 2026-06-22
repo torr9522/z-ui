@@ -79,7 +79,15 @@ func (b *Builder) Build(templateConfig string, inbounds []*model.Inbound) (*Snap
 		if err != nil {
 			return nil, err
 		}
-		inboundConfig, err := module.BuildInbound(inbound)
+		normalized, err := module.Migrate(inbound)
+		if err != nil {
+			return nil, err
+		}
+		schema, err := xprotocol.BuildSchemaFromInbound(normalized, string(normalized.Protocol), true)
+		if err != nil {
+			return nil, err
+		}
+		inboundConfig, err := xprotocol.BuildInboundByProtocol(schema)
 		if err != nil {
 			return nil, err
 		}

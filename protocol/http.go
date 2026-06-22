@@ -63,10 +63,15 @@ func (m *httpModule) Validate(inbound *model.Inbound) error {
 }
 
 func (m *httpModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {
-	if err := m.Validate(inbound); err != nil {
+	normalized, err := normalizeInboundSchemaState(inbound, m.name, true)
+	if err != nil {
 		return nil, err
 	}
-	return buildInboundConfig(inbound, inbound.Settings, inbound.StreamSettings), nil
+	schema, err := buildInboundSchema(normalized)
+	if err != nil {
+		return nil, err
+	}
+	return BuildInboundByProtocol(schema)
 }
 
 func normalizeHTTPStreamSettings(raw string) (string, error) {

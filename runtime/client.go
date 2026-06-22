@@ -6,11 +6,11 @@ import (
 	"time"
 
 	proxymancommand "github.com/xtls/xray-core/app/proxyman/command"
+	commonprotocol "github.com/xtls/xray-core/common/protocol"
 	"github.com/xtls/xray-core/common/serial"
 	xtcore "github.com/xtls/xray-core/core"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-	commonprotocol "github.com/xtls/xray-core/common/protocol"
 )
 
 type Client struct {

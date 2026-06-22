@@ -166,6 +166,373 @@ func normalizeStreamSettings(protocolName string, raw string) (string, error) {
 	return encodeObject(stream)
 }
 
+type transportOptions struct {
+	allowTLS     bool
+	allowReality bool
+}
+
+func rebuildTransportSettings(raw map[string]interface{}, opts transportOptions) map[string]interface{} {
+	out := map[string]interface{}{}
+	if len(raw) == 0 {
+		return out
+	}
+
+	network := normalizedNetwork(raw)
+	if network != "" {
+		out["network"] = network
+	}
+
+	security := normalizedSecurity(raw)
+	switch security {
+	case "tls":
+		if opts.allowTLS {
+			out["security"] = "tls"
+			if tlsSettings := sanitizeTLSSettings(raw["tlsSettings"], raw["xtlsSettings"]); len(tlsSettings) > 0 {
+				out["tlsSettings"] = tlsSettings
+			}
+		}
+	case "reality":
+		if opts.allowReality {
+			out["security"] = "reality"
+			if realitySettings := sanitizeRealitySettings(raw["realitySettings"]); len(realitySettings) > 0 {
+				out["realitySettings"] = realitySettings
+			}
+		}
+	}
+
+	switch network {
+	case "tcp":
+		if tcpSettings := sanitizeTCPSettings(raw["tcpSettings"]); len(tcpSettings) > 0 {
+			out["tcpSettings"] = tcpSettings
+		}
+	case "ws":
+		if wsSettings := sanitizeWSSettings(raw["wsSettings"]); len(wsSettings) > 0 {
+			out["wsSettings"] = wsSettings
+		}
+	case "xhttp":
+		if xhttpSettings := sanitizeXHTTPSettings(raw); len(xhttpSettings) > 0 {
+			out["xhttpSettings"] = xhttpSettings
+		}
+	case "grpc":
+		if grpcSettings := sanitizeGRPCSettings(raw["grpcSettings"]); len(grpcSettings) > 0 {
+			out["grpcSettings"] = grpcSettings
+		}
+	}
+
+	return out
+}
+
+func rebuildHTTPStreamSettings(raw map[string]interface{}) map[string]interface{} {
+	security := normalizedSecurity(raw)
+	if security != "tls" {
+		return map[string]interface{}{}
+	}
+	tlsSettings := sanitizeTLSSettings(raw["tlsSettings"], raw["xtlsSettings"])
+	if len(tlsSettings) == 0 {
+		return map[string]interface{}{"security": "tls"}
+	}
+	return map[string]interface{}{
+		"security":    "tls",
+		"tlsSettings": tlsSettings,
+	}
+}
+
+func normalizedNetwork(raw map[string]interface{}) string {
+	network := strings.ToLower(strings.TrimSpace(stringValue(raw["network"])))
+	switch network {
+	case "http", "splithttp":
+		return "xhttp"
+	case "tcp", "ws", "xhttp", "grpc":
+		return network
+	default:
+		return "tcp"
+	}
+}
+
+func normalizedSecurity(raw map[string]interface{}) string {
+	security := strings.ToLower(strings.TrimSpace(stringValue(raw["security"])))
+	if security == "xtls" {
+		return "tls"
+	}
+	switch security {
+	case "tls", "reality":
+		return security
+	default:
+		return "none"
+	}
+}
+
+func sanitizeTLSSettings(primary interface{}, legacy interface{}) map[string]interface{} {
+	settings, ok := primary.(map[string]interface{})
+	if !ok {
+		settings, _ = legacy.(map[string]interface{})
+	}
+	if len(settings) == 0 {
+		return map[string]interface{}{}
+	}
+	out := map[string]interface{}{}
+	if serverName := strings.TrimSpace(stringValue(settings["serverName"])); serverName != "" {
+		out["serverName"] = serverName
+	}
+	if certificates := sanitizeCertificateList(settings["certificates"]); len(certificates) > 0 {
+		out["certificates"] = certificates
+	}
+	return out
+}
+
+func sanitizeRealitySettings(value interface{}) map[string]interface{} {
+	settings, ok := value.(map[string]interface{})
+	if !ok || len(settings) == 0 {
+		return map[string]interface{}{}
+	}
+	out := map[string]interface{}{
+		"show":        boolValue(settings["show"]),
+		"privateKey":  strings.TrimSpace(stringValue(settings["privateKey"])),
+		"publicKey":   strings.TrimSpace(stringValue(settings["publicKey"])),
+		"spiderX":     strings.TrimSpace(stringValue(settings["spiderX"])),
+		"dest":        strings.TrimSpace(stringValue(settings["dest"])),
+		"fingerprint": strings.TrimSpace(stringValue(settings["fingerprint"])),
+	}
+	if out["spiderX"] == "" {
+		out["spiderX"] = "/"
+	}
+	if out["fingerprint"] == "" {
+		out["fingerprint"] = "chrome"
+	}
+	if shortIds := sanitizeStringList(settings["shortIds"]); len(shortIds) > 0 {
+		out["shortIds"] = shortIds
+	}
+	if serverNames := sanitizeStringList(settings["serverNames"]); len(serverNames) > 0 {
+		out["serverNames"] = serverNames
+	}
+	return out
+}
+
+func sanitizeTCPSettings(value interface{}) map[string]interface{} {
+	settings, ok := value.(map[string]interface{})
+	if !ok || len(settings) == 0 {
+		return map[string]interface{}{}
+	}
+	header, _ := settings["header"].(map[string]interface{})
+	headerType := strings.TrimSpace(strings.ToLower(stringValue(header["type"])))
+	if headerType == "" {
+		headerType = "none"
+	}
+	out := map[string]interface{}{
+		"header": map[string]interface{}{
+			"type": headerType,
+		},
+	}
+	if headerType == "http" {
+		request := map[string]interface{}{}
+		if req, ok := header["request"].(map[string]interface{}); ok {
+			request["version"] = firstNonEmptyString(req["version"], "1.1")
+			request["method"] = firstNonEmptyString(req["method"], "GET")
+			if paths := sanitizeStringList(req["path"]); len(paths) > 0 {
+				request["path"] = paths
+			} else {
+				request["path"] = []string{"/"}
+			}
+			if headers := sanitizeHeaderMap(req["headers"]); len(headers) > 0 {
+				request["headers"] = headers
+			}
+		}
+		response := map[string]interface{}{}
+		if resp, ok := header["response"].(map[string]interface{}); ok {
+			response["version"] = firstNonEmptyString(resp["version"], "1.1")
+			response["status"] = firstNonEmptyString(resp["status"], "200")
+			response["reason"] = firstNonEmptyString(resp["reason"], "OK")
+			if headers := sanitizeHeaderMap(resp["headers"]); len(headers) > 0 {
+				response["headers"] = headers
+			}
+		}
+		out["header"].(map[string]interface{})["request"] = request
+		out["header"].(map[string]interface{})["response"] = response
+	}
+	return out
+}
+
+func sanitizeWSSettings(value interface{}) map[string]interface{} {
+	settings, ok := value.(map[string]interface{})
+	if !ok || len(settings) == 0 {
+		return map[string]interface{}{}
+	}
+	out := map[string]interface{}{
+		"path": firstNonEmptyString(settings["path"], "/"),
+	}
+	if headers := sanitizeHeaderMap(settings["headers"]); len(headers) > 0 {
+		out["headers"] = headers
+	}
+	return out
+}
+
+func sanitizeXHTTPSettings(raw map[string]interface{}) map[string]interface{} {
+	var settings map[string]interface{}
+	switch {
+	case raw["xhttpSettings"] != nil:
+		settings, _ = raw["xhttpSettings"].(map[string]interface{})
+	case raw["splithttpSettings"] != nil:
+		settings, _ = raw["splithttpSettings"].(map[string]interface{})
+	case raw["httpSettings"] != nil:
+		settings, _ = raw["httpSettings"].(map[string]interface{})
+	}
+	if len(settings) == 0 {
+		return map[string]interface{}{}
+	}
+	out := map[string]interface{}{
+		"path": firstNonEmptyString(settings["path"], "/"),
+		"host": strings.TrimSpace(firstString(settings["host"])),
+		"mode": firstNonEmptyString(settings["mode"], "stream-one"),
+	}
+	if extra := strings.TrimSpace(stringValue(settings["extra"])); extra != "" {
+		out["extra"] = extra
+	}
+	if headers := sanitizeHeaderMap(settings["headers"]); len(headers) > 0 {
+		out["headers"] = headers
+	}
+	return out
+}
+
+func sanitizeGRPCSettings(value interface{}) map[string]interface{} {
+	settings, ok := value.(map[string]interface{})
+	if !ok || len(settings) == 0 {
+		return map[string]interface{}{}
+	}
+	out := map[string]interface{}{}
+	if serviceName := strings.TrimSpace(stringValue(settings["serviceName"])); serviceName != "" {
+		out["serviceName"] = serviceName
+	}
+	return out
+}
+
+func sanitizeCertificateList(value interface{}) []interface{} {
+	items := interfaceSlice(value)
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]interface{}, 0, len(items))
+	for _, item := range items {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		certFile := strings.TrimSpace(stringValue(entry["certificateFile"]))
+		keyFile := strings.TrimSpace(stringValue(entry["keyFile"]))
+		if certFile != "" || keyFile != "" {
+			out = append(out, map[string]interface{}{
+				"certificateFile": certFile,
+				"keyFile":         keyFile,
+			})
+			continue
+		}
+		cert := sanitizeStringList(entry["certificate"])
+		key := sanitizeStringList(entry["key"])
+		if len(cert) > 0 && len(key) > 0 {
+			out = append(out, map[string]interface{}{
+				"certificate": cert,
+				"key":         key,
+			})
+		}
+	}
+	return out
+}
+
+func sanitizeStringList(value interface{}) []interface{} {
+	items := interfaceSlice(value)
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]interface{}, 0, len(items))
+	for _, item := range items {
+		if trimmed := strings.TrimSpace(stringValue(item)); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func sanitizeHeaderMap(value interface{}) map[string]interface{} {
+	headers, ok := value.(map[string]interface{})
+	if !ok || len(headers) == 0 {
+		return map[string]interface{}{}
+	}
+	out := make(map[string]interface{}, len(headers))
+	for key, item := range headers {
+		switch typed := item.(type) {
+		case []interface{}:
+			values := sanitizeStringList(typed)
+			if len(values) > 0 {
+				out[key] = values
+			}
+		default:
+			if trimmed := strings.TrimSpace(stringValue(typed)); trimmed != "" {
+				out[key] = trimmed
+			}
+		}
+	}
+	return out
+}
+
+func filterAccounts(value interface{}) []interface{} {
+	items := interfaceSlice(value)
+	if len(items) == 0 {
+		return nil
+	}
+	out := make([]interface{}, 0, len(items))
+	for _, item := range items {
+		account, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		user := strings.TrimSpace(stringValue(account["user"]))
+		pass := strings.TrimSpace(stringValue(account["pass"]))
+		if user == "" || pass == "" {
+			continue
+		}
+		out = append(out, map[string]interface{}{
+			"user": user,
+			"pass": pass,
+		})
+	}
+	return out
+}
+
+func numericValue(value interface{}) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	case json.Number:
+		v, _ := typed.Int64()
+		return int(v)
+	case string:
+		var out int
+		_, _ = fmt.Sscanf(strings.TrimSpace(typed), "%d", &out)
+		return out
+	default:
+		return 0
+	}
+}
+
+func boolValueOrDefault(value interface{}, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return boolValue(value)
+}
+
+func firstNonEmptyString(value interface{}, fallback string) string {
+	if trimmed := strings.TrimSpace(firstString(value)); trimmed != "" {
+		return trimmed
+	}
+	return fallback
+}
+
 func emptyObject() string {
 	return "{}"
 }
@@ -358,6 +725,9 @@ func firstString(value interface{}) string {
 }
 
 func stringValue(value interface{}) string {
+	if value == nil {
+		return ""
+	}
 	switch typed := value.(type) {
 	case string:
 		return typed

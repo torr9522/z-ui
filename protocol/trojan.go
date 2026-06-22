@@ -29,12 +29,13 @@ func (m *trojanModule) Validate(inbound *model.Inbound) error {
 }
 
 func (m *trojanModule) BuildInbound(inbound *model.Inbound) (*xray.InboundConfig, error) {
-	if err := m.Validate(inbound); err != nil {
-		return nil, err
-	}
-	streamSettings, err := normalizeStreamSettings(m.name, inbound.StreamSettings)
+	normalized, err := normalizeInboundSchemaState(inbound, m.name, true)
 	if err != nil {
 		return nil, err
 	}
-	return buildInboundConfig(inbound, inbound.Settings, streamSettings), nil
+	schema, err := buildInboundSchema(normalized)
+	if err != nil {
+		return nil, err
+	}
+	return BuildInboundByProtocol(schema)
 }

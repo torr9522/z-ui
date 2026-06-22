@@ -6,10 +6,22 @@ import (
 )
 
 type InboundSchema struct {
+	Listen         string
+	Port           int
+	Tag            string
+	Sniffing       map[string]interface{}
 	Protocol       string
 	Clients        []map[string]interface{}
 	Settings       map[string]interface{}
 	StreamSettings map[string]interface{}
+}
+
+func BuildSchemaFromInbound(inbound *model.Inbound, protocolName string, validate bool) (*InboundSchema, error) {
+	normalized, err := normalizeInboundSchemaState(inbound, protocolName, validate)
+	if err != nil {
+		return nil, err
+	}
+	return buildInboundSchema(normalized)
 }
 
 func normalizeInboundSchemaState(inbound *model.Inbound, protocolName string, validate bool) (*model.Inbound, error) {
@@ -49,6 +61,10 @@ func buildInboundSchema(inbound *model.Inbound) (*InboundSchema, error) {
 	}
 
 	return &InboundSchema{
+		Listen:         inbound.Listen,
+		Port:           inbound.Port,
+		Tag:            inbound.Tag,
+		Sniffing:       map[string]interface{}{},
 		Protocol:       strings.ToLower(string(inbound.Protocol)),
 		Clients:        clients,
 		Settings:       settings,
@@ -78,183 +94,162 @@ func (s *InboundSchema) apply(inbound *model.Inbound) error {
 	inbound.Protocol = model.Protocol(s.Protocol)
 	inbound.Settings = rawSettings
 	inbound.StreamSettings = rawStreamSettings
-
-	switch s.Protocol {
-	case "mixed", "socks", "http", "dokodemo-door", "tunnel":
-		clearTransportState(inbound)
-		inbound.StreamSettings = rawStreamSettings
-	}
+	inbound.Sniffing = emptyObject()
 
 	return nil
 }
 
 func (s *InboundSchema) normalize() {
-	if s.Settings == nil {
-		s.Settings = map[string]interface{}{}
-	}
-	if s.StreamSettings == nil {
-		s.StreamSettings = map[string]interface{}{}
-	}
+	rawSettings := cloneMap(s.Settings)
+	rawStreamSettings := cloneMap(s.StreamSettings)
+	rawClients := cloneClients(s.Clients)
+
+	ResetInboundState(s)
 
 	switch s.Protocol {
 	case "vmess":
-		s.normalizeVMess()
+		s.normalizeVMess(rawSettings, rawClients, rawStreamSettings)
 	case "vless":
-		s.normalizeVLESS()
+		s.normalizeVLESS(rawSettings, rawClients, rawStreamSettings)
 	case "trojan":
-		s.normalizeTrojan()
+		s.normalizeTrojan(rawSettings, rawClients, rawStreamSettings)
 	case "shadowsocks":
-		s.normalizeShadowsocks()
+		s.normalizeShadowsocks(rawSettings, rawClients)
 	case "socks":
-		s.normalizeSocks()
+		s.normalizeSocks(rawSettings)
 	case "http":
-		s.normalizeHTTP()
+		s.normalizeHTTP(rawSettings, rawStreamSettings)
 	case "mixed":
-		s.Clients = nil
+		s.Settings = map[string]interface{}{}
 		s.StreamSettings = map[string]interface{}{}
 	case "dokodemo-door", "tunnel":
-		s.normalizeDokodemo()
+		s.normalizeDokodemo(rawSettings)
 	}
 }
 
-func (s *InboundSchema) normalizeVMess() {
-	s.Clients = singleClientOnly(s.Clients)
+func ResetInboundState(schema *InboundSchema) {
+	schema.Clients = nil
+	schema.Settings = defaultSchemaSettings(schema.Protocol)
+	schema.StreamSettings = map[string]interface{}{}
+	schema.Sniffing = map[string]interface{}{}
+}
+
+func (s *InboundSchema) normalizeVMess(rawSettings map[string]interface{}, rawClients []map[string]interface{}, rawStream map[string]interface{}) {
+	s.Clients = singleClientOnly(rawClients)
 	if len(s.Clients) > 0 {
 		client := s.Clients[0]
 		client["id"] = strings.TrimSpace(stringValue(client["id"]))
 		client["alterId"] = 0
 		delete(client, "flow")
+		delete(client, "password")
 	}
-	delete(s.Settings, "decryption")
-	s.Settings["disableInsecureEncryption"] = boolValue(s.Settings["disableInsecureEncryption"])
-	s.normalizeTransport(false)
+	s.Settings["disableInsecureEncryption"] = boolValue(rawSettings["disableInsecureEncryption"])
+	s.StreamSettings = rebuildTransportSettings(rawStream, transportOptions{
+		allowTLS:     true,
+		allowReality: false,
+	})
 }
 
-func (s *InboundSchema) normalizeVLESS() {
-	s.Clients = singleClientOnly(s.Clients)
+func (s *InboundSchema) normalizeVLESS(rawSettings map[string]interface{}, rawClients []map[string]interface{}, rawStream map[string]interface{}) {
+	s.Clients = singleClientOnly(rawClients)
 	if len(s.Clients) > 0 {
 		client := s.Clients[0]
 		client["id"] = strings.TrimSpace(stringValue(client["id"]))
 		normalizeClientFlow(client)
 	}
-	if strings.TrimSpace(stringValue(s.Settings["decryption"])) == "" {
-		s.Settings["decryption"] = "none"
+	decryption := strings.TrimSpace(stringValue(rawSettings["decryption"]))
+	if decryption == "" {
+		decryption = "none"
 	}
-	s.normalizeTransport(true)
+	s.Settings["decryption"] = decryption
+	s.StreamSettings = rebuildTransportSettings(rawStream, transportOptions{
+		allowTLS:     true,
+		allowReality: true,
+	})
 }
 
-func (s *InboundSchema) normalizeTrojan() {
-	s.Clients = singleClientOnly(s.Clients)
+func (s *InboundSchema) normalizeTrojan(rawSettings map[string]interface{}, rawClients []map[string]interface{}, rawStream map[string]interface{}) {
+	s.Clients = singleClientOnly(rawClients)
 	if len(s.Clients) > 0 {
 		client := s.Clients[0]
 		client["password"] = strings.TrimSpace(stringValue(client["password"]))
 		delete(client, "flow")
+		delete(client, "id")
 	}
-	s.normalizeTransport(true)
+	s.StreamSettings = rebuildTransportSettings(rawStream, transportOptions{
+		allowTLS:     true,
+		allowReality: true,
+	})
 }
 
-func (s *InboundSchema) normalizeShadowsocks() {
-	s.Clients = singleClientOnly(s.Clients)
-	if strings.TrimSpace(stringValue(s.Settings["password"])) == "" && len(s.Clients) > 0 {
-		s.Settings["password"] = strings.TrimSpace(stringValue(s.Clients[0]["password"]))
+func (s *InboundSchema) normalizeShadowsocks(rawSettings map[string]interface{}, rawClients []map[string]interface{}) {
+	password := strings.TrimSpace(stringValue(rawSettings["password"]))
+	if password == "" && len(rawClients) > 0 {
+		password = strings.TrimSpace(stringValue(rawClients[0]["password"]))
 	}
-	if strings.TrimSpace(stringValue(s.Settings["method"])) == "" {
-		s.Settings["method"] = "aes-256-gcm"
+	method := strings.TrimSpace(strings.ToLower(stringValue(rawSettings["method"])))
+	if method == "" {
+		method = "aes-256-gcm"
 	}
-	if strings.TrimSpace(stringValue(s.Settings["network"])) == "" {
-		s.Settings["network"] = "tcp,udp"
+	network := strings.TrimSpace(strings.ToLower(stringValue(rawSettings["network"])))
+	if network == "" {
+		network = "tcp,udp"
 	}
+	s.Settings["password"] = password
+	s.Settings["method"] = method
+	s.Settings["network"] = network
 	s.Clients = nil
-	s.normalizeTransport(false)
+	s.StreamSettings = map[string]interface{}{}
 }
 
-func (s *InboundSchema) normalizeSocks() {
+func (s *InboundSchema) normalizeSocks(rawSettings map[string]interface{}) {
 	s.Clients = nil
-	auth := strings.TrimSpace(strings.ToLower(stringValue(s.Settings["auth"])))
+	auth := strings.TrimSpace(strings.ToLower(stringValue(rawSettings["auth"])))
 	switch auth {
 	case "", "noauth":
 		s.Settings["auth"] = "noauth"
 		delete(s.Settings, "accounts")
 	case "password":
 		s.Settings["auth"] = "password"
+		if accounts := filterAccounts(rawSettings["accounts"]); len(accounts) > 0 {
+			s.Settings["accounts"] = accounts
+		}
 	default:
 		s.Settings["auth"] = auth
 	}
-	if strings.TrimSpace(stringValue(s.Settings["ip"])) == "" {
+	if strings.TrimSpace(stringValue(rawSettings["ip"])) == "" {
 		s.Settings["ip"] = "127.0.0.1"
-	}
-	if _, exists := s.Settings["udp"]; !exists {
-		s.Settings["udp"] = true
 	} else {
-		s.Settings["udp"] = boolValue(s.Settings["udp"])
+		s.Settings["ip"] = strings.TrimSpace(stringValue(rawSettings["ip"]))
 	}
+	s.Settings["udp"] = boolValueOrDefault(rawSettings["udp"], true)
 	s.StreamSettings = map[string]interface{}{}
 }
 
-func (s *InboundSchema) normalizeHTTP() {
+func (s *InboundSchema) normalizeHTTP(rawSettings map[string]interface{}, rawStream map[string]interface{}) {
 	s.Clients = nil
-	if _, exists := s.Settings["allowTransparent"]; !exists {
-		s.Settings["allowTransparent"] = false
-	} else {
-		s.Settings["allowTransparent"] = boolValue(s.Settings["allowTransparent"])
-	}
-	authEnabled := boolValue(s.Settings["auth"])
+	s.Settings["allowTransparent"] = boolValue(rawSettings["allowTransparent"])
+	authEnabled := boolValue(rawSettings["auth"])
 	if !authEnabled {
 		delete(s.Settings, "accounts")
+	} else if accounts := filterAccounts(rawSettings["accounts"]); len(accounts) > 0 {
+		s.Settings["accounts"] = accounts
 	}
 	s.Settings["auth"] = authEnabled
+	s.StreamSettings = rebuildHTTPStreamSettings(rawStream)
 }
 
-func (s *InboundSchema) normalizeDokodemo() {
+func (s *InboundSchema) normalizeDokodemo(rawSettings map[string]interface{}) {
 	s.Clients = nil
-	if strings.TrimSpace(stringValue(s.Settings["network"])) == "" {
-		s.Settings["network"] = "tcp,udp"
+	s.Settings["address"] = strings.TrimSpace(stringValue(rawSettings["address"]))
+	s.Settings["port"] = numericValue(rawSettings["port"])
+	network := strings.TrimSpace(strings.ToLower(stringValue(rawSettings["network"])))
+	if network == "" {
+		network = "tcp,udp"
 	}
-	if _, exists := s.Settings["followRedirect"]; !exists {
-		s.Settings["followRedirect"] = false
-	} else {
-		s.Settings["followRedirect"] = boolValue(s.Settings["followRedirect"])
-	}
+	s.Settings["network"] = network
+	s.Settings["followRedirect"] = boolValue(rawSettings["followRedirect"])
 	s.StreamSettings = map[string]interface{}{}
-}
-
-func (s *InboundSchema) normalizeTransport(allowReality bool) {
-	if s.StreamSettings == nil {
-		s.StreamSettings = map[string]interface{}{}
-	}
-	if len(s.StreamSettings) == 0 {
-		return
-	}
-
-	network := strings.ToLower(strings.TrimSpace(stringValue(s.StreamSettings["network"])))
-	switch network {
-	case "splithttp", "http":
-		s.StreamSettings["network"] = "xhttp"
-	case "":
-	default:
-		s.StreamSettings["network"] = network
-	}
-
-	security := strings.ToLower(strings.TrimSpace(stringValue(s.StreamSettings["security"])))
-	if security == "xtls" {
-		security = "tls"
-		if _, exists := s.StreamSettings["tlsSettings"]; !exists {
-			if legacy, ok := s.StreamSettings["xtlsSettings"]; ok {
-				s.StreamSettings["tlsSettings"] = legacy
-			}
-		}
-	}
-	delete(s.StreamSettings, "xtlsSettings")
-
-	if security == "reality" && !allowReality {
-		security = "none"
-		delete(s.StreamSettings, "realitySettings")
-	}
-
-	if security != "tls" && security != "reality" {
-		security = "none"
-	}
-	s.StreamSettings["security"] = security
 }
 
 func schemaClients(settings map[string]interface{}) []map[string]interface{} {
@@ -308,6 +303,17 @@ func cloneMap(input map[string]interface{}) map[string]interface{} {
 	out := make(map[string]interface{}, len(input))
 	for key, value := range input {
 		out[key] = value
+	}
+	return out
+}
+
+func cloneClients(input []map[string]interface{}) []map[string]interface{} {
+	if len(input) == 0 {
+		return nil
+	}
+	out := make([]map[string]interface{}, 0, len(input))
+	for _, item := range input {
+		out = append(out, cloneMap(item))
 	}
 	return out
 }
