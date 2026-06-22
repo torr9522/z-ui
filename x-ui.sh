@@ -1261,24 +1261,59 @@ EOF
   fi
 }
 
-menu_main() {
-  trap 'printf "\n已退出菜单。\n"; exit 130' INT
-  while true; do
-    cat <<'EOF'
-========================
-z-ui 管理菜单
-=========
+print_menu_separator() {
+  printf '──────────────────────\n'
+}
 
+print_menu_header() {
+  print_menu_separator
+  printf 'z-ui 管理面板\n'
+  print_menu_separator
+}
+
+print_menu_status() {
+  local status panel_status xray_status port
+  status="$(service_status)"
+  panel_status="$(service_status_text "${status}")"
+  xray_status="$(service_status_text "${status}")"
+  port="$(current_port)"
+  print_menu_separator
+  printf '系统状态\n\n'
+  printf '面板状态 : %s\n' "${panel_status}"
+  printf 'Xray状态 : %s\n' "${xray_status}"
+  printf '端口     : %s\n' "${port}"
+  print_menu_separator
+}
+
+print_main_menu() {
+  print_menu_header
+  cat <<'EOF'
+
+──────── 服务相关 ────────
 1. 服务管理
+
+──────── 面板相关 ────────
 2. 面板信息
 3. 重置账号密码
 4. 重置面板端口
+
+──────── 系统功能 ────────
 5. 证书管理
 6. 端口保护
 7. 更新系统
 8. 卸载系统
+
+──────── 退出 ────────
 9. 退出
+
 EOF
+  print_menu_status
+}
+
+menu_main() {
+  trap 'printf "\n已退出菜单。\n"; exit 130' INT
+  while true; do
+    print_main_menu
     local choice
     read -r -p "请输入选择：" choice || return 0
     case "${choice}" in
