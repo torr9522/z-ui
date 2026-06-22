@@ -5,7 +5,7 @@
 - 项目名称：`x-ui`
 - 当前版本：`1.0.0`
 - 当前分支：`z-ui`
-- 最新审计阶段：`016_RELEASE_STABLE`
+- 最新审计阶段：`017_RELEASE_INSTALL_CHAIN_FIX`
 
 ## 最近提交
 
@@ -57,6 +57,7 @@ c73661d Harden x-ui command safety and certificate handling
 - IP 画像增强层
 - Xray access.log 标准轮转
 - v1.0 稳定收尾
+- v1.0 发布安装链路修复
 - n-ui 风格账号密码显示兼容
 - Build Metadata 构建元信息
 
@@ -205,6 +206,26 @@ Xray access.log 生命周期管理：
 - 不增加 Go 后台日志清理任务。
 - 不增加任何网络控制能力。
 
+## 发布安装链路状态
+
+安装链路：
+
+- `install.sh` 固定下载 GitHub Release `v1.0.0`。
+- 不再调用 GitHub Releases latest API。
+- 不再自动选择 `beta-v0.1.6-public-install`。
+- 不允许 fallback 到旧 release 包。
+
+固定下载地址：
+
+```text
+https://github.com/torr9522/z-ui/releases/download/v1.0.0/z-ui-linux-<arch>.tar.gz
+```
+
+发布要求：
+
+- `v1.0.0` release asset 必须由当前 `z-ui` HEAD 构建。
+- `z-ui-linux-amd64.tar.gz` 必须包含完整仓库源码审计文件和当前构建产物。
+
 ## 当前验证基线
 
 最近验证基线：
@@ -233,6 +254,7 @@ Xray access.log 生命周期管理：
 - logrotate 配置内容检查
 - logrotate debug 解析检查
 - v1.0 稳定收尾审计
+- v1.0 release 安装链路校验
 
 ## 账号密码显示状态
 
@@ -264,11 +286,11 @@ Build Metadata 状态：
 
 最近新增阶段：
 
-- `PROJECT_HISTORY/016_RELEASE_STABLE.md`
+- `PROJECT_HISTORY/017_RELEASE_INSTALL_CHAIN_FIX.md`
 
 下一个重要阶段必须创建：
 
-- `PROJECT_HISTORY/017_<FEATURE>.md`
+- `PROJECT_HISTORY/018_<FEATURE>.md`
 
 不要覆盖：
 
@@ -283,6 +305,7 @@ Build Metadata 状态：
 - `PROJECT_HISTORY/014_IP_PROFILE_ENHANCEMENT.md`
 - `PROJECT_HISTORY/015_XRAY_ACCESS_LOGROTATE.md`
 - `PROJECT_HISTORY/016_RELEASE_STABLE.md`
+- `PROJECT_HISTORY/017_RELEASE_INSTALL_CHAIN_FIX.md`
 
 只更新：
 

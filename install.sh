@@ -12,7 +12,7 @@ PORT_GUARD_SERVICE_PATH="/etc/systemd/system/zui-port-guard-sync.service"
 PORT_GUARD_TIMER_PATH="/etc/systemd/system/zui-port-guard-sync.timer"
 XRAY_ACCESS_LOGROTATE_PATH="/etc/logrotate.d/x-ui-xray-access"
 REPO="${XUI_REPO:-torr9522/z-ui}"
-XUI_RELEASE_VERSION="${1:-${XUI_VERSION:-}}"
+XUI_RELEASE_VERSION="v1.0.0"
 TMP_DIR=""
 
 log() {
@@ -96,23 +96,10 @@ detect_arch() {
   esac
 }
 
-latest_version() {
-  local api="https://api.github.com/repos/${REPO}/releases/latest"
-  curl -fsSL "${api}" | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1
-}
-
 download_package() {
   local tmp_dir="$1"
   local package_path="${tmp_dir}/x-ui.tar.gz"
-  local url="${XUI_INSTALL_PACKAGE_URL:-}"
-
-  if [[ -z "${url}" ]]; then
-    if [[ -z "${XUI_RELEASE_VERSION}" ]]; then
-      XUI_RELEASE_VERSION="$(latest_version)"
-    fi
-    [[ -n "${XUI_RELEASE_VERSION}" ]] || fail "failed to resolve latest release version"
-    url="https://github.com/${REPO}/releases/download/${XUI_RELEASE_VERSION}/z-ui-linux-${ARCH}.tar.gz"
-  fi
+  local url="https://github.com/${REPO}/releases/download/${XUI_RELEASE_VERSION}/z-ui-linux-${ARCH}.tar.gz"
 
   log "Downloading ${APP_NAME} package: ${url}" >&2
   curl -fL --retry 3 --connect-timeout 15 -o "${package_path}" "${url}"
