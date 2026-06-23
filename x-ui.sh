@@ -578,37 +578,98 @@ cmd_log() {
   journalctl -u "${SERVICE_NAME}" -e --no-pager -f
 }
 
-cmd_reset_user() {
+restart_x_ui_service() {
+  systemctl restart "${SERVICE_NAME}"
+  systemctl is-active --quiet "${SERVICE_NAME}"
+}
+
+apply_panel_user() {
   require_installed
-  local username password
-  username="$(generate_username)"
-  password="$(generate_password)"
+  local username="$1"
+  local password="$2"
+  [[ -n "${username}" ]] || fail "用户名不能为空"
+  [[ -n "${password}" ]] || fail "密码不能为空"
   "${BIN}" setting -username "${username}" -password "${password}" >/dev/null
   chmod 700 "${CONFIG_DIR}" 2>/dev/null || true
   chmod 600 "${DB_PATH}" 2>/dev/null || true
-  systemctl restart "${SERVICE_NAME}"
+  restart_x_ui_service
   cat <<EOF
-Username:
+新用户名：
 ${username}
 
-Password:
+新密码：
 ${password}
+
+服务已重启，配置已生效。
 EOF
+}
+
+cmd_set_user() {
+  local username="${1:-}"
+  local password="${2:-}"
+  [[ -n "${username}" ]] || fail "用法: x-ui set-user <用户名> <密码>"
+  [[ -n "${password}" ]] || fail "用法: x-ui set-user <用户名> <密码>"
+  apply_panel_user "${username}" "${password}"
+}
+
+cmd_reset_user() {
+  require_installed
+  local username password
+  while true; do
+    username="$(generate_username)"
+    password="$(generate_password)"
+    if [[ "${username}" != "admin" || "${password}" != "admin" ]]; then
+      break
+    fi
+  done
+  apply_panel_user "${username}" "${password}"
+}
+
+validate_panel_port() {
+  local port="$1"
+  if [[ -z "${port}" ]]; then
+    printf '端口不能为空。\n' >&2
+    return 1
+  fi
+  if [[ ! "${port}" =~ ^[0-9]+$ ]]; then
+    printf '端口必须是数字。\n' >&2
+    return 1
+  fi
+  local port_num=$((10#${port}))
+  if [[ "${port_num}" -lt 1 || "${port_num}" -gt 65535 ]]; then
+    printf '端口范围必须是 1-65535。\n' >&2
+    return 1
+  fi
+}
+
+apply_panel_port() {
+  require_installed
+  local port="$1"
+  validate_panel_port "${port}"
+  "${BIN}" setting -port "${port}" >/dev/null
+  restart_x_ui_service
+  cat <<EOF
+面板地址：
+$(panel_url "${port}")
+
+面板端口：
+${port}
+
+服务已重启，配置已生效。
+EOF
+}
+
+cmd_set_port() {
+  local port="${1:-}"
+  validate_panel_port "${port}"
+  apply_panel_port "${port}"
 }
 
 cmd_reset_port() {
   require_installed
   local port
   port="$(generate_port)"
-  "${BIN}" setting -port "${port}" >/dev/null
-  systemctl restart "${SERVICE_NAME}"
-  cat <<EOF
-Panel URL:
-$(panel_url "${port}")
-
-Port:
-${port}
-EOF
+  apply_panel_port "${port}"
 }
 
 cmd_info() {
@@ -1222,6 +1283,91 @@ EOF
   done
 }
 
+menu_user_manager() {
+  while true; do
+    cat <<'EOF'
+面板账号密码管理
+
+1. 自定义重置账号密码
+2. 随机重置账号密码
+0. 返回主菜单
+
+EOF
+    local choice username password
+    read -r -p "请输入选择：" choice || return 0
+    case "${choice}" in
+      "")
+        continue
+        ;;
+      1)
+        read -r -p "请输入新用户名：" username || username=""
+        if [[ -z "${username}" ]]; then
+          printf '用户名不能为空。\n'
+          pause_return
+          continue
+        fi
+        read -r -p "请输入新密码：" password || password=""
+        if [[ -z "${password}" ]]; then
+          printf '密码不能为空。\n'
+          pause_return
+          continue
+        fi
+        apply_panel_user "${username}" "${password}"
+        pause_return
+        ;;
+      2)
+        cmd_reset_user
+        pause_return
+        ;;
+      0)
+        return 0
+        ;;
+      *)
+        printf '无效选择，请重新输入。\n'
+        ;;
+    esac
+  done
+}
+
+menu_port_manager() {
+  while true; do
+    cat <<'EOF'
+面板端口管理
+
+1. 重置自定义端口
+2. 重置随机端口（范围10000-59999）
+0. 返回主菜单
+
+EOF
+    local choice port
+    read -r -p "请输入选择：" choice || return 0
+    case "${choice}" in
+      "")
+        continue
+        ;;
+      1)
+        read -r -p "请输入新面板端口：" port || port=""
+        if ! validate_panel_port "${port}"; then
+          pause_return
+          continue
+        fi
+        apply_panel_port "${port}"
+        pause_return
+        ;;
+      2)
+        cmd_reset_port
+        pause_return
+        ;;
+      0)
+        return 0
+        ;;
+      *)
+        printf '无效选择，请重新输入。\n'
+        ;;
+    esac
+  done
+}
+
 menu_update() {
   cat <<'EOF'
 警告：
@@ -1294,8 +1440,8 @@ print_main_menu() {
 
 ──────── 面板相关 ────────
 2. 面板信息
-3. 重置账号密码
-4. 重置面板端口
+3. 面板账号密码管理
+4. 面板端口管理
 
 ──────── 系统功能 ────────
 5. 证书管理
@@ -1320,8 +1466,8 @@ menu_main() {
       "") continue ;;
       1) menu_service ;;
       2) cmd_panel_info_cn; pause_return ;;
-      3) cmd_reset_user; pause_return ;;
-      4) cmd_reset_port; pause_return ;;
+      3) menu_user_manager ;;
+      4) menu_port_manager ;;
       5) cmd_cert_manager ;;
       6) menu_port_guard ;;
       7) menu_update ;;
@@ -1379,8 +1525,12 @@ x-ui 命令用法：
   x-ui enable       开机启动
   x-ui disable      取消开机启动
   x-ui log          查看日志
-  x-ui reset-user   重置账号密码
-  x-ui reset-port   重置面板端口
+  x-ui reset-user   随机重置账号密码
+  x-ui reset-port   随机重置面板端口（范围10000-59999）
+  x-ui set-user <用户名> <密码>
+                    自定义重置账号密码
+  x-ui set-port <端口>
+                    自定义重置面板端口
   x-ui info         查看面板地址、用户名和当前密码
   x-ui cert         证书管理
   x-ui cert status  查看证书续期状态
@@ -1413,6 +1563,8 @@ main() {
     log) cmd_log ;;
     reset-user) cmd_reset_user ;;
     reset-port) cmd_reset_port ;;
+    set-user) shift; cmd_set_user "$@" ;;
+    set-port) shift; cmd_set_port "$@" ;;
     info) cmd_info ;;
     cert) shift; cmd_cert_manager "$@" ;;
     port-guard) shift; cmd_port_guard "$@" ;;
