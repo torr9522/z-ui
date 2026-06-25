@@ -400,6 +400,12 @@ func discoverFromRoot(base string, source string, importedPaths map[string]struc
 		}
 		_, importedCert := importedPaths[resolvedCert]
 		_, importedKey := importedPaths[resolvedKey]
+		// also check by sanitized domain name in managed certs dir
+		domainImported := false
+		if clean := sanitizeCertificateName(domain); clean != "" {
+			_, err := os.Stat(filepath.Join(certificatesDir, clean, "fullchain.pem"))
+			domainImported = err == nil
+		}
 		result = append(result, &entity.DiscoveredCertificate{
 			Domain:          domain,
 			CertPath:        filepath.Clean(certPath),
@@ -409,7 +415,7 @@ func discoverFromRoot(base string, source string, importedPaths map[string]struc
 			NotBefore:       cert.NotBefore.Format(time.RFC3339),
 			NotAfter:        cert.NotAfter.Format(time.RFC3339),
 			Expired:         time.Now().After(cert.NotAfter),
-			AlreadyImported: importedCert || importedKey,
+			AlreadyImported: importedCert || importedKey || domainImported,
 		})
 	}
 	return result, nil
