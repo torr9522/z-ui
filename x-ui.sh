@@ -1631,6 +1631,9 @@ cmd_update() {
   [[ -d "${source_dir}" ]] || source_dir="${extract_dir}"
   [[ -f "${source_dir}/x-ui" ]] || fail "package missing x-ui binary"
   [[ -f "${source_dir}/x-ui.sh" ]] || fail "package missing x-ui.sh"
+  [[ -f "${source_dir}/bin/xray-linux-${arch}" ]] || fail "新版本包不完整：缺少 bin/xray-linux-${arch}，已取消更新"
+  [[ -s "${source_dir}/bin/geoip.dat" ]] || fail "新版本包不完整：缺少 bin/geoip.dat，已取消更新"
+  [[ -s "${source_dir}/bin/geosite.dat" ]] || fail "新版本包不完整：缺少 bin/geosite.dat，已取消更新"
 
   # Backup current install dir
   local backup_dir="${INSTALL_DIR}.backup.$(date -u +%Y%m%d%H%M%S)"

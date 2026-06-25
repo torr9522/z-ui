@@ -12,7 +12,7 @@ PORT_GUARD_SERVICE_PATH="/etc/systemd/system/zui-port-guard-sync.service"
 PORT_GUARD_TIMER_PATH="/etc/systemd/system/zui-port-guard-sync.timer"
 XRAY_ACCESS_LOGROTATE_PATH="/etc/logrotate.d/x-ui-xray-access"
 REPO="${XUI_REPO:-torr9522/z-ui}"
-XUI_RELEASE_VERSION="v1.0.4"
+XUI_RELEASE_VERSION="v1.0.5"
 TMP_DIR=""
 
 log() {
@@ -238,6 +238,9 @@ install_files() {
   [[ -x "${source_dir}/x-ui" || -f "${source_dir}/x-ui" ]] || fail "package missing x-ui binary"
   [[ -f "${source_dir}/x-ui.sh" ]] || fail "package missing x-ui management script"
   [[ -f "${source_dir}/x-ui.service" ]] || fail "package missing systemd service"
+  [[ -f "${source_dir}/bin/xray-linux-${ARCH}" ]] || fail "package missing bin/xray-linux-${ARCH} — release 包不完整"
+  [[ -s "${source_dir}/bin/geoip.dat" ]] || fail "package missing bin/geoip.dat — release 包不完整"
+  [[ -s "${source_dir}/bin/geosite.dat" ]] || fail "package missing bin/geosite.dat — release 包不完整"
 
   rm -rf "${INSTALL_DIR}"
   mkdir -p "${INSTALL_DIR}"
