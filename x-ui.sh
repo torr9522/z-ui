@@ -1593,7 +1593,84 @@ menu_main() {
 
 cmd_update() {
   require_root
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh")
+  local arch
+  case "$(uname -m)" in
+    x86_64)  arch="amd64" ;;
+    aarch64) arch="arm64" ;;
+    *)       fail "unsupported architecture: $(uname -m)" ;;
+  esac
+
+  # Fetch target version from GitHub install.sh
+  local raw_url="https://raw.githubusercontent.com/${REPO}/${BRANCH}/install.sh"
+  local target_version
+  target_version="$(curl -fsSL "${raw_url}" | grep '^XUI_RELEASE_VERSION=' | head -1 | cut -d'"' -f2)"
+  [[ -n "${target_version}" ]] || fail "failed to determine target version from ${raw_url}"
+
+  local current_version
+  current_version="$("${INSTALL_DIR}/x-ui" version 2>/dev/null | sed -n 's/^Version: //p' | head -1 || true)"
+  printf '当前版本：%s\n目标版本：%s\n' "${current_version:-unknown}" "${target_version}"
+
+  # Download release package to temp dir
+  local tmp_dir
+  tmp_dir="$(mktemp -d /tmp/z-ui-update-XXXXXX)"
+  trap 'rm -rf "${tmp_dir}"' RETURN
+
+  local pkg="${tmp_dir}/x-ui.tar.gz"
+  local url="https://github.com/${REPO}/releases/download/${target_version}/z-ui-linux-${arch}.tar.gz"
+  printf '下载 %s ...\n' "${url}"
+  curl -fL --retry 3 --connect-timeout 15 -o "${pkg}" "${url}"
+  [[ -s "${pkg}" ]] || fail "downloaded package is empty"
+  tar -tzf "${pkg}" >/dev/null
+
+  # Extract and validate
+  local extract_dir="${tmp_dir}/extract"
+  mkdir -p "${extract_dir}"
+  tar -xzf "${pkg}" -C "${extract_dir}"
+  local source_dir="${extract_dir}/x-ui"
+  [[ -d "${source_dir}" ]] || source_dir="${extract_dir}"
+  [[ -f "${source_dir}/x-ui" ]] || fail "package missing x-ui binary"
+  [[ -f "${source_dir}/x-ui.sh" ]] || fail "package missing x-ui.sh"
+
+  # Backup current install dir
+  local backup_dir="${INSTALL_DIR}.backup.$(date -u +%Y%m%d%H%M%S)"
+  cp -a "${INSTALL_DIR}" "${backup_dir}"
+
+  # Stop service before replacing files
+  systemctl stop "${SERVICE_NAME}" >/dev/null 2>&1 || true
+
+  # Replace program files — never touch /etc/x-ui
+  rm -rf "${INSTALL_DIR}"
+  mkdir -p "${INSTALL_DIR}"
+  cp -a "${source_dir}/." "${INSTALL_DIR}/"
+  chmod 755 "${INSTALL_DIR}/x-ui" "${INSTALL_DIR}/x-ui.sh"
+  [[ -f "${INSTALL_DIR}/bin/xray-linux-${arch}" ]] && chmod 755 "${INSTALL_DIR}/bin/xray-linux-${arch}"
+
+  install -m 0755 "${INSTALL_DIR}/x-ui.sh" /usr/bin/x-ui
+  install -m 0644 "${INSTALL_DIR}/x-ui.service" "/etc/systemd/system/${SERVICE_NAME}.service"
+  [[ -f "${INSTALL_DIR}/scripts/zui-port-guard-sync" ]] &&     install -m 0755 "${INSTALL_DIR}/scripts/zui-port-guard-sync" "${PORT_GUARD_SYNC}"
+  [[ -f "${INSTALL_DIR}/zui-port-guard-sync.service" ]] &&     install -m 0644 "${INSTALL_DIR}/zui-port-guard-sync.service" "${PORT_GUARD_SERVICE}"
+  [[ -f "${INSTALL_DIR}/zui-port-guard-sync.timer" ]] &&     install -m 0644 "${INSTALL_DIR}/zui-port-guard-sync.timer" "${PORT_GUARD_TIMER}"
+  local lr_src="${INSTALL_DIR}/packaging/logrotate/x-ui-xray-access"
+  [[ -f "${lr_src}" ]] && install -m 0644 "${lr_src}" /etc/logrotate.d/x-ui-xray-access
+
+  systemctl daemon-reload
+  systemctl enable "${SERVICE_NAME}" >/dev/null 2>&1 || true
+  systemctl start "${SERVICE_NAME}"
+
+  # Verify or rollback
+  if systemctl is-active --quiet "${SERVICE_NAME}"; then
+    local new_version
+    new_version="$("${INSTALL_DIR}/x-ui" version 2>/dev/null | sed -n 's/^Version: //p' | head -1 || true)"
+    printf 'z-ui 更新成功：%s → %s\n备份保留在：%s\n' "${current_version:-unknown}" "${new_version:-unknown}" "${backup_dir}"
+  else
+    printf 'ERROR: 服务启动失败，正在回滚...\n' >&2
+    rm -rf "${INSTALL_DIR}"
+    mv "${backup_dir}" "${INSTALL_DIR}"
+    install -m 0755 "${INSTALL_DIR}/x-ui.sh" /usr/bin/x-ui
+    systemctl daemon-reload
+    systemctl start "${SERVICE_NAME}" || true
+    fail "更新失败，已回滚到旧版本"
+  fi
 }
 
 cmd_uninstall_confirmed() {
