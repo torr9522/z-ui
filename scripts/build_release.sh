@@ -13,19 +13,20 @@ for arch in "${archs[@]}"; do
   pkg_dir="${ROOT}/.release/v${VERSION}/pkg-${arch}/x-ui"
   rm -rf "${pkg_dir}" && mkdir -p "${pkg_dir}/bin"
 
-  # Build Go binary for target arch
-  echo "  Building Go binary..."
-  GOOS=linux GOARCH="${arch}" go build -o "${pkg_dir}/x-ui" "${ROOT}"
-
-  # Copy source files (exclude bin/, .release/, .git, node_modules, combined-backup, archive)
+  # Copy source files first (exclude bin/, built binary, large/irrelevant dirs)
   rsync -a --exclude='bin/' --exclude='.release/' --exclude='.git/' \
-    --exclude='node_modules/' --exclude='combined-backup/' --exclude='archive/' \
-    --exclude='backup/' --exclude='pre-reboot*' --exclude='*.tar.gz' \
-    --exclude='*.sha256' --exclude='*.patch' --exclude='packaging/logrotate' \
+    --exclude='x-ui' --exclude='node_modules/' --exclude='combined-backup/' \
+    --exclude='archive/' --exclude='backup/' --exclude='pre-reboot*' \
+    --exclude='*.tar.gz' --exclude='*.sha256' --exclude='*.patch' \
+    --exclude='packaging/logrotate' \
     "${ROOT}/" "${pkg_dir}/"
-  # Re-add logrotate
   mkdir -p "${pkg_dir}/packaging/logrotate"
   cp "${ROOT}/packaging/logrotate/x-ui-xray-access" "${pkg_dir}/packaging/logrotate/" 2>/dev/null || true
+
+  # Build Go binary AFTER rsync so it is not overwritten
+  echo "  Building Go binary (arch=${arch})..."
+  cd "${ROOT}"
+  GOOS=linux GOARCH="${arch}" go build -o "${pkg_dir}/x-ui" .
 
   # Download xray binary if not in local bin/
   xray_src="${ROOT}/bin/xray-linux-${arch}"
