@@ -25,6 +25,20 @@
     <a-form-item v-else-if="inbound.stream.tls.certs[0].useFile" label="本地证书">
         <span>未检测到本地证书，可通过 x-ui 命令导入证书</span>
     </a-form-item>
+    <a-form-item v-if="availableCertificates().length === 0 && discoveredCertificates().length > 0 && inbound.stream.tls.certs[0].useFile" label="系统证书">
+        <div style="min-width: 420px;">
+            <div style="margin-bottom: 8px;">检测到系统证书，可导入后使用</div>
+            <div v-for="candidate in discoveredCertificates()" :key="candidate.certPath" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap;">
+                <span>[[ candidate.domain ]]</span>
+                <a-tag color="blue">[[ candidate.source ]]</a-tag>
+                <a-tag v-if="candidate.expired" color="red">expired</a-tag>
+                <a-tag v-else color="green">valid</a-tag>
+                <a-button size="small" type="primary" :disabled="candidate.alreadyImported" @click="importDiscoveredCertificate(candidate)">
+                    [[ candidate.alreadyImported ? '已导入' : '导入' ]]
+                </a-button>
+            </div>
+        </div>
+    </a-form-item>
     <a-form-item label="证书">
         <a-radio-group v-model="inbound.stream.tls.certs[0].useFile"
                        button-style="solid">

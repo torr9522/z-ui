@@ -13,6 +13,7 @@
         okText: '确定',
         confirm: null,
         certificates: [],
+        discoveredCertificates: [],
         protocolSchemas: {},
         protocolSchema: null,
         portGuardExpanded: false,
@@ -43,6 +44,7 @@
             this.confirm = confirm;
             this.loadProtocolSchema(this.inbound.protocol);
             this.loadCertificates();
+            this.loadDiscoveredCertificates();
             this.visible = true;
         },
         async loadProtocolSchema(protocol) {
@@ -65,6 +67,14 @@
                 return;
             }
             this.certificates = msg.obj;
+        },
+        async loadDiscoveredCertificates() {
+            const msg = await HttpUtil.get('/api/certificates/discover');
+            if (!msg.success || !Array.isArray(msg.obj)) {
+                this.discoveredCertificates = [];
+                return;
+            }
+            this.discoveredCertificates = msg.obj;
         },
         close() {
             inModal.visible = false;
@@ -264,6 +274,9 @@
             availableCertificates() {
                 return Array.isArray(this.inModal.certificates) ? this.inModal.certificates : [];
             },
+            discoveredCertificates() {
+                return Array.isArray(this.inModal.discoveredCertificates) ? this.inModal.discoveredCertificates : [];
+            },
             applyCertificate(certFile) {
                 const selected = this.availableCertificates().find(item => item.certFile === certFile);
                 if (!selected) {
@@ -275,6 +288,23 @@
                 if (!this.inbound.stream.tls.server && selected.domain) {
                     this.inbound.stream.tls.server = selected.domain;
                 }
+            },
+            async importDiscoveredCertificate(candidate) {
+                const name = String((candidate && candidate.domain) || '').trim();
+                if (!name) {
+                    return;
+                }
+                const msg = await HttpUtil.post('/api/certificates/import-discovered', {
+                    certPath: candidate.certPath,
+                    keyPath: candidate.keyPath,
+                    name: name,
+                });
+                if (!msg.success || !msg.obj) {
+                    return;
+                }
+                await this.inModal.loadCertificates();
+                await this.inModal.loadDiscoveredCertificates();
+                this.applyCertificate(msg.obj.certFile);
             },
             protocolField(field) {
                 const settings = this.inbound.settings;

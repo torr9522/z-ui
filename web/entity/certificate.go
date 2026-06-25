@@ -11,3 +11,15 @@ type Certificate struct {
 	AutoRenew     bool   `json:"autoRenew"`
 	DaysRemaining int64  `json:"daysRemaining"`
 }
+
+type DiscoveredCertificate struct {
+	Domain          string `json:"domain"`
+	CertPath        string `json:"certPath"`
+	KeyPath         string `json:"keyPath"`
+	Source          string `json:"source"`
+	Issuer          string `json:"issuer"`
+	NotBefore       string `json:"notBefore"`
+	NotAfter        string `json:"notAfter"`
+	Expired         bool   `json:"expired"`
+	AlreadyImported bool   `json:"alreadyImported"`
+}

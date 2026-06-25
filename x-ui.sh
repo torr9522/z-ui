@@ -1093,6 +1093,117 @@ cmd_cert_autorenew() {
   printf 'autoRenew for %s set to %s\n' "${name}" "${state}"
 }
 
+cmd_cert_discover_import() {
+  ensure_certs_dir
+  command -v openssl >/dev/null 2>&1 || fail "openssl is required"
+  local candidates=()
+  local certs=()
+  local keys=()
+  local sources=()
+
+  discover_acme_dir() {
+    local base="$1" src="$2"
+    [[ -d "${base}" ]] || return 0
+    local dir name cert key
+    for dir in "${base}"/*/; do
+      [[ -d "${dir}" ]] || continue
+      name="$(basename "${dir}")"
+      # letsencrypt
+      if [[ "${src}" == "letsencrypt" ]]; then
+        cert="${dir}fullchain.pem"
+        key="${dir}privkey.pem"
+      else
+        # acme.sh ECC or RSA
+        if [[ "${name}" == *_ecc ]]; then
+          cert="${dir}fullchain.cer"
+          key="${dir}${name%.ecc_}.key"
+          key="${dir}${name%_ecc}.key"
+        else
+          cert="${dir}fullchain.cer"
+          key="${dir}${name}.key"
+        fi
+      fi
+      [[ -f "${cert}" && -f "${key}" ]] || continue
+      # validate pair
+      local cmod kmod
+      cmod="$(openssl x509 -noout -modulus -in "${cert}" 2>/dev/null || true)"
+      kmod="$(openssl rsa -noout -modulus -in "${key}" 2>/dev/null ||
+              openssl ec  -noout -no_public -in "${key}" 2>/dev/null || true)"
+      [[ -n "${cmod}" && "${cmod}" == "${kmod}" ]] || continue
+      candidates+=("${name}")
+      certs+=("${cert}")
+      keys+=("${key}")
+      sources+=("${src}")
+    done
+  }
+
+  discover_acme_dir "/etc/letsencrypt/live"  "letsencrypt"
+  discover_acme_dir "/root/.acme.sh"         "acme.sh"
+  local home_dir
+  for home_dir in /home/*/; do
+    [[ -d "${home_dir}.acme.sh" ]] || continue
+    discover_acme_dir "${home_dir}.acme.sh" "acme.sh"
+  done
+
+  if [[ "${#candidates[@]}" -eq 0 ]]; then
+    printf '未发现系统证书（/etc/letsencrypt/live 或 ~/.acme.sh）\n'
+    return 0
+  fi
+
+  printf '发现以下系统证书：\n'
+  local i
+  for i in "${!candidates[@]}"; do
+    local expiry
+    expiry="$(openssl x509 -enddate -noout -in "${certs[${i}]}" 2>/dev/null | sed 's/notAfter=//' || true)"
+    printf '%d. [%s] %s (到期: %s)\n' "$((i+1))" "${sources[${i}]}" "${candidates[${i}]}" "${expiry:-unknown}"
+  done
+
+  local choice
+  read -r -p "选择要导入的证书编号（0 取消）: " choice
+  [[ "${choice}" =~ ^[0-9]+$ ]] || { printf '输入无效\n'; return 1; }
+  [[ "${choice}" -eq 0 ]] && return 0
+  [[ "${choice}" -ge 1 && "${choice}" -le "${#candidates[@]}" ]] || { printf '编号超出范围\n'; return 1; }
+
+  local idx=$(( choice - 1 ))
+  local src_cert="${certs[${idx}]}"
+  local src_key="${keys[${idx}]}"
+  local default_name="${candidates[${idx}]}"
+
+  local name
+  read -r -p "证书名称 [${default_name}]: " name
+  name="${name:-${default_name}}"
+  # sanitize: only keep a-z0-9._-
+  name="$(printf '%s' "${name}" | tr -cd 'a-zA-Z0-9._-' | tr '[:upper:]' '[:lower:]' | sed 's/^\.\+//;s/\.\+$//;s/\.\{2,\}/./g')"
+  [[ -n "${name}" ]] || fail "证书名称无效"
+
+  local target_dir
+  target_dir="$(cert_dir "${name}")"
+  if [[ -d "${target_dir}" ]]; then
+    local overwrite
+    read -r -p "证书 ${name} 已存在，覆盖？[y/N]: " overwrite
+    [[ "${overwrite}" =~ ^[Yy]$ ]] || { printf '已取消\n'; return 0; }
+    local bak
+    bak="$(backup_path "${CERTS_DIR}/${name}.bak")"
+    mv "${target_dir}" "${bak}"
+  fi
+  mkdir -p "${target_dir}"
+  chmod 700 "${target_dir}"
+  cp "${src_cert}" "${target_dir}/fullchain.pem"
+  cp "${src_key}"  "${target_dir}/privkey.pem"
+  chmod 0644 "${target_dir}/fullchain.pem"
+  chmod 0600 "${target_dir}/privkey.pem"
+
+  local domain expire_at
+  domain="$(openssl x509 -noout -subject -in "${target_dir}/fullchain.pem" 2>/dev/null \
+            | sed -n 's/.*CN *= *//p' | sed 's#/$##' | head -n1)"
+  domain="${domain:-${name}}"
+  expire_at="$(openssl_expire_epoch "${target_dir}/fullchain.pem")"
+  write_cert_meta "${target_dir}/meta.json" "${name}" "${domain}" \
+    "${sources[${idx}]}" "${target_dir}/fullchain.pem" "${target_dir}/privkey.pem" \
+    "$(date +%s)" "${expire_at}" "false" "imported" "0"
+  printf '证书已导入: %s\n' "${target_dir}"
+}
+
 cmd_cert_not_implemented() {
   printf '即将支持 / Not implemented yet\n'
 }
@@ -1106,6 +1217,7 @@ cmd_cert_manager() {
     autorenew) cmd_cert_autorenew; return 0 ;;
     issue-domain) cmd_cert_issue_acme; return 0 ;;
     issue-ip) cmd_cert_issue_ip; return 0 ;;
+    discover-import) cmd_cert_discover_import; return 0 ;;
   esac
   while true; do
     cat <<'EOF'
@@ -1119,7 +1231,8 @@ Certificate Manager
 7. 查看续期状态
 8. 立即续期
 9. 自动续期开关
-10. 返回
+10. 发现并导入系统证书
+11. 返回
 EOF
     local choice
     read -r -p "Select: " choice
