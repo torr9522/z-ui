@@ -1613,7 +1613,8 @@ cmd_update() {
   # Download release package to temp dir
   local tmp_dir
   tmp_dir="$(mktemp -d /tmp/z-ui-update-XXXXXX)"
-  trap 'rm -rf "${tmp_dir}"' RETURN
+  # No RETURN trap: bash may read the replaced script file when trap fires.
+  # Clean up tmp_dir explicitly before systemctl (before the file is replaced).
 
   local pkg="${tmp_dir}/x-ui.tar.gz"
   local url="https://github.com/${REPO}/releases/download/${target_version}/z-ui-linux-${arch}.tar.gz"
@@ -1652,6 +1653,8 @@ cmd_update() {
   [[ -f "${INSTALL_DIR}/zui-port-guard-sync.timer" ]] &&     install -m 0644 "${INSTALL_DIR}/zui-port-guard-sync.timer" "${PORT_GUARD_TIMER}"
   local lr_src="${INSTALL_DIR}/packaging/logrotate/x-ui-xray-access"
   [[ -f "${lr_src}" ]] && install -m 0644 "${lr_src}" /etc/logrotate.d/x-ui-xray-access
+
+  rm -rf "${tmp_dir}"
 
   systemctl daemon-reload
   systemctl enable "${SERVICE_NAME}" >/dev/null 2>&1 || true
